@@ -19,6 +19,12 @@ export function isoDate(ddmmyyyy: string | null | undefined): string | undefined
   return m ? `${m[3]}-${m[2]}-${m[1]}` : undefined;
 }
 
+/** The source has occasional typos (e.g. a birth year of 2026): keep only dates that give an age of 14–50. */
+export function plausibleBirthDate(iso: string | undefined): string | undefined {
+  const year = iso ? Number(iso.slice(0, 4)) : NaN;
+  return year >= 1976 && year <= 2012 ? iso : undefined;
+}
+
 /** "7/22" → [7, 22]; "" → [0, 0] */
 export function parseShots(v: unknown): Shots {
   const m = String(v ?? '').match(/^(\d+)\/(\d+)$/);
@@ -155,7 +161,7 @@ export function normalizeEuropeanAquatics(raw: EaSeason): DataSet {
       id,
       firstName: p.PlaName.trim(),
       lastName: titleCase(p.PlaSurname.trim()),
-      birthDate: isoDate(p.PlaBirth),
+      birthDate: plausibleBirthDate(isoDate(p.PlaBirth)),
       nationality: p.PlaNaz ?? undefined,
       clubId: clubId(p.PlaTeamCode),
       cap: capCounts[0]?.[0] || undefined,

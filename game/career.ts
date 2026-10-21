@@ -10,6 +10,9 @@ import { DEFAULT_TACTICS, generateTeam } from '../engine/generate';
 import { simulateMatch } from '../engine/match';
 import type { Attributes, MatchOptions, MatchResult, Tactics, Team } from '../engine/types';
 import type { LeagueDef } from './leagues';
+import { boardExpectation, initialPotential } from './development';
+import type { SeasonRecord, PlayerSeasonEntry, SummerReport } from './seasons';
+import { trainingWeek, type IndividualFocus, type TrainingReport } from './training';
 import {
   conditionAfterMatch,
   DEFAULT_MORALE,
@@ -18,7 +21,6 @@ import {
   moraleAfter,
   moraleBonus,
   pickMatchday,
-  trainingWeek,
   validStarters,
   type NewsItem,
   type PlayerCondition,
@@ -26,10 +28,21 @@ import {
   type Training,
 } from './squad';
 
-export const CAREER_VERSION = 2;
+export const CAREER_VERSION = 4;
 const NEWS_KEPT = 60;
 export const SEASON = '2026-27';
-const SEASON_START = '2026-10-03'; // first Saturday of October
+
+/** "2026-27" → 2026 */
+export const seasonYear = (season: string) => Number(season.slice(0, 4));
+/** 2027 → "2027-28" */
+export const seasonLabel = (year: number) => `${year}-${String((year + 1) % 100).padStart(2, '0')}`;
+
+/** The first Saturday of October in a season's first year. */
+export function seasonStart(year: number) {
+  const d = new Date(Date.UTC(year, 9, 1, 12));
+  while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 const POINTS = { win: 3, draw: 1, loss: 0 };
 
 export interface FixtureResult {
@@ -91,6 +104,27 @@ export interface CareerState {
   progress: Record<string, Partial<Record<keyof Attributes, number>>>;
   /** latest news about the managed club, newest last */
   news: NewsItem[];
+  /** hidden potential (the overall rating each player can grow to) */
+  potential: Record<string, number>;
+  /** where the board expects the managed club to finish this season */
+  expectation: number;
+  /** past seasons, oldest first */
+  history: SeasonRecord[];
+  /** each player's past seasons */
+  playerHistory: Record<string, PlayerSeasonEntry[]>;
+  /** what happened in the last summer break (shown at the start of a new season) */
+  summer?: SummerReport;
+  /** personal training focus per player of the managed club (default: the team plan) */
+  individual: Record<string, IndividualFocus>;
+  /** the latest weekly training report for the managed club */
+  trainingReport?: TrainingReport;
+  /** recent training ratings per player (newest last) */
+  trainingRatings: Record<string, number[]>;
+}
+
+function potentials(teams: Team[], seed: number): Record<string, number> {
+  const rng = createRng((seed ^ 0x9071) >>> 0);
+  return Object.fromEntries(teams.flatMap((t) => t.players.map((p) => [p.id, initialPotential(p, rng)])));
 }
 
 export interface TableRow {
@@ -125,7 +159,7 @@ export function createCareer(options: { league: LeagueDef; realTeams: Team[]; ma
     const quality = hi - ((hi - lo) * i) / Math.max(1, missing - 1);
     return generateTeam(rng, `GEN-${league.id}-${short}`, name, short, quality);
   });
-  const teams = [...realTeams, ...generatedTeams].map((t) => ({ ...t, tactics: { ...DEFAULT_TACTICS, ...t.tactics } }));
+  const teams = fixAges([...realTeams, ...generatedTeams].map((t) => ({ ...t, tactics: { ...DEFAULT_TACTICS, ...t.tactics } })));
   const now = options.now ?? new Date().toISOString();
   return {
     version: CAREER_VERSION,
@@ -147,15 +181,35 @@ export function createCareer(options: { league: LeagueDef; realTeams: Team[]; ma
     morale: Object.fromEntries(teams.map((t) => [t.id, DEFAULT_MORALE])),
     progress: {},
     news: [],
+    potential: potentials(teams, seed),
+    expectation: boardExpectation(teams, managedClubId),
+    history: [],
+    playerHistory: {},
+    individual: {},
+    trainingRatings: {},
   };
 }
 
 /** Bring an older save up to date. */
+/** Players with an impossible age (typos in the source data) get a typical one. */
+function fixAges(teams: Team[]): Team[] {
+  if (!teams.some((t) => t.players.some((p) => p.age < 14 || p.age > 50))) return teams;
+  return teams.map((t) => ({ ...t, players: t.players.map((p) => (p.age < 14 || p.age > 50 ? { ...p, age: 24 } : p)) }));
+}
+
 export function migrateCareer(state: CareerState): CareerState {
-  if (state.version >= CAREER_VERSION && state.squad && state.news) return state;
+  const teams = fixAges(state.teams);
+  if (state.version >= CAREER_VERSION && state.squad && state.news && state.potential && state.individual && teams === state.teams) return state;
   return {
     ...state,
+    teams,
+    individual: state.individual ?? {},
+    trainingRatings: state.trainingRatings ?? {},
     version: CAREER_VERSION,
+    potential: state.potential ?? potentials(state.teams, state.seed),
+    expectation: state.expectation ?? boardExpectation(state.teams, state.managedClubId),
+    history: state.history ?? [],
+    playerHistory: state.playerHistory ?? {},
     squad: state.squad ?? Object.fromEntries(state.teams.flatMap((t) => t.players.map((p) => [p.id, { condition: 100 }]))),
     training: state.training ?? { ...DEFAULT_TRAINING },
     morale: state.morale ?? Object.fromEntries(state.teams.map((t) => [t.id, DEFAULT_MORALE])),
@@ -176,7 +230,7 @@ function addDays(iso: string, days: number) {
  * at home and once away. With an odd number of clubs, one club rests each round.
  * Rounds are a week apart, with a two-week winter break.
  */
-export function makeSchedule(teamIds: string[], seed: number): Fixture[] {
+export function makeSchedule(teamIds: string[], seed: number, startDate = seasonStart(seasonYear(SEASON))): Fixture[] {
   const rng = createRng(seed ^ 0x5eed);
   const ids: (string | null)[] = [...teamIds];
   for (let i = ids.length - 1; i > 0; i--) {
@@ -204,7 +258,7 @@ export function makeSchedule(teamIds: string[], seed: number): Fixture[] {
   const rounds = [...firstHalf, ...firstHalf.map((pairs) => pairs.map(([h, a]) => [a, h] as [string, string]))];
 
   const fixtures: Fixture[] = [];
-  let date = SEASON_START;
+  let date = startDate;
   rounds.forEach((pairs, r) => {
     // Winter break: no matches from Dec 20 to Jan 3.
     while (date.slice(5) >= '12-20' || date.slice(5) <= '01-03') date = addDays(date, 7);
@@ -241,7 +295,7 @@ export function teamFor(state: CareerState, clubId: string): Team {
 /** Every match has its own seed, derived from the career seed, so a season replays identically. */
 export function fixtureSeed(state: CareerState, fixture: Fixture): number {
   let h = state.seed >>> 0;
-  for (const ch of fixture.id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  for (const ch of `${state.season}/${fixture.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
   return h;
 }
 
@@ -422,8 +476,29 @@ export function simulateRound(input: CareerState, round: number, now?: string): 
     progress: next.progress,
     managedClubId: next.managedClubId,
     training: next.training,
+    individual: next.individual,
+    morale: next.morale[next.managedClubId],
+    ratings: next.trainingRatings,
+    minutes: Object.fromEntries(Object.entries(next.playerStats).map(([id, s]) => [id, s.minutes])),
+    roundsPlayed: round,
   });
-  return { ...next, teams: week.teams, squad: week.squad, progress: week.progress, news: [...next.news, ...week.news].slice(-NEWS_KEPT) };
+  return {
+    ...next,
+    teams: week.teams,
+    squad: week.squad,
+    progress: week.progress,
+    trainingReport: week.report,
+    trainingRatings: week.ratings,
+    news: [...next.news, ...week.news].slice(-NEWS_KEPT),
+  };
+}
+
+/** Give a player of the managed club his own training focus ('team' = follow the team plan). */
+export function setIndividualFocus(state: CareerState, playerId: string, focus: IndividualFocus): CareerState {
+  const individual = { ...state.individual };
+  if (focus === 'team') delete individual[playerId];
+  else individual[playerId] = focus;
+  return { ...state, individual };
 }
 
 export function setTraining(state: CareerState, training: Training): CareerState {

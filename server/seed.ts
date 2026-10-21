@@ -16,6 +16,8 @@ async function insertAll<T>(table: any, rows: T[]) {
 }
 
 sqlite.exec('BEGIN');
+// Career saves point at clubs: check those links when the reload is complete, not row by row.
+sqlite.exec('PRAGMA defer_foreign_keys = ON');
 for (const t of ['player_match_stats', 'player_attributes', 'players', 'matches', 'club_competitions', 'clubs', 'competitions']) sqlite.exec(`DELETE FROM ${t}`);
 
 await insertAll(schema.competitions, data.competitions);

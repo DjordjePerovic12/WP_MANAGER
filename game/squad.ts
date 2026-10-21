@@ -62,16 +62,16 @@ export const FOCUS_LABELS: Record<TrainingFocus, string> = {
   recovery: 'Recovery',
 };
 
-const INTENSITY = {
+export const INTENSITY = {
   // weekly fitness recovery (a flat amount plus a share of what is missing: tired players recover faster),
   // attribute progress per week, weekly injury risk per player
   light: { recovery: 12, recoveryShare: 0.55, progress: 0.07, injury: 0.002 },
   normal: { recovery: 7, recoveryShare: 0.45, progress: 0.13, injury: 0.005 },
   hard: { recovery: 3, recoveryShare: 0.35, progress: 0.22, injury: 0.014 },
 };
-const weeklyRecovery = (condition: number, i: (typeof INTENSITY)[keyof typeof INTENSITY], bonus = 0) =>
+export const weeklyRecovery = (condition: number, i: (typeof INTENSITY)[keyof typeof INTENSITY], bonus = 0) =>
   Math.min(100, Math.round(condition + i.recovery + bonus + (100 - condition) * i.recoveryShare));
-const RECOVERY_FOCUS_BONUS = 10;
+export const RECOVERY_FOCUS_BONUS = 10;
 /** fitness lost per minute played */
 const CONDITION_PER_MINUTE = 0.95;
 const MIN_CONDITION = 25;
@@ -154,75 +154,6 @@ export function moraleAfter(morale: number, goalsFor: number, goalsAgainst: numb
 /** Fitness lost in a match, by minutes played. */
 export function conditionAfterMatch(condition: number, minutes: number) {
   return Math.max(MIN_CONDITION, Math.round(condition - minutes * CONDITION_PER_MINUTE));
-}
-
-export interface WeekReport {
-  squad: Record<string, PlayerCondition>;
-  teams: Team[];
-  progress: Record<string, Partial<Record<keyof Attributes, number>>>;
-  news: NewsItem[];
-}
-
-/**
- * A week between rounds: injured players heal, everyone recovers fitness, and the
- * managed club trains (attributes improve slowly; hard training risks injuries).
- */
-export function trainingWeek(options: {
-  round: number;
-  seed: number;
-  teams: Team[];
-  squad: Record<string, PlayerCondition>;
-  progress: Record<string, Partial<Record<keyof Attributes, number>>>;
-  managedClubId: string;
-  training: Training;
-}): WeekReport {
-  const { round, teams, managedClubId, training } = options;
-  const rng = createRng((options.seed ^ Math.imul(round + 1, 0x9e3779b1)) >>> 0);
-  const squad = { ...options.squad };
-  const progress = { ...options.progress };
-  const news: NewsItem[] = [];
-  const nextTeams = teams.map((team) => {
-    const managed = team.id === managedClubId;
-    const intensity = INTENSITY[managed ? training.intensity : 'normal'];
-    const players = team.players.map((p) => {
-      const before = squad[p.id] ?? { condition: 100 };
-      const now: PlayerCondition = { ...before };
-      if (now.injury) {
-        const weeksLeft = now.injury.weeksLeft - 1;
-        now.injury = weeksLeft > 0 ? { ...now.injury, weeksLeft } : undefined;
-        if (!now.injury && managed) news.push({ round, kind: 'recovered', text: `${p.name} is fit again after his ${before.injury!.name.toLowerCase()}.` });
-        now.condition = weeklyRecovery(now.condition, intensity);
-        squad[p.id] = now;
-        return p;
-      }
-      now.condition = weeklyRecovery(now.condition, intensity, managed && training.focus === 'recovery' ? RECOVERY_FOCUS_BONUS : 0);
-      if (rng.chance(intensity.injury)) {
-        now.injury = rollInjury(rng);
-        if (managed) news.push({ round, kind: 'injury', text: `${p.name} picked up a ${now.injury.name.toLowerCase()} in training: out for ${now.injury.weeksLeft} week${now.injury.weeksLeft > 1 ? 's' : ''}.` });
-      }
-      squad[p.id] = now;
-      if (!managed || training.focus === 'recovery') return p;
-
-      // Training: progress builds up week by week; a full point raises the attribute.
-      const attrs = p.position === 'GK' ? GOALKEEPER_ATTRIBUTES : FOCUS_ATTRIBUTES[training.focus];
-      const perAttribute = (intensity.progress * ageFactor(p.age) * (training.focus === 'balanced' ? 2.2 : 1)) / Math.max(1, training.focus === 'balanced' ? attrs.length : 1);
-      const mine = { ...(progress[p.id] ?? {}) };
-      const nextAttrs = { ...p.attrs };
-      for (const key of attrs) {
-        if (nextAttrs[key] >= 20) continue;
-        const value = (mine[key] ?? 0) + perAttribute * (0.7 + rng.next() * 0.6);
-        if (value >= 1) {
-          nextAttrs[key] += 1;
-          mine[key] = value - 1;
-          news.push({ round, kind: 'training', text: `${p.name} improved ${ATTRIBUTE_LABELS[key].toLowerCase()} to ${nextAttrs[key]}.` });
-        } else mine[key] = value;
-      }
-      progress[p.id] = mine;
-      return { ...p, attrs: nextAttrs };
-    });
-    return { ...team, players };
-  });
-  return { squad, teams: nextTeams, progress, news };
 }
 
 /** Injuries from a match: who got hurt and for how long. */

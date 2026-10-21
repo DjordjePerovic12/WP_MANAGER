@@ -6,6 +6,7 @@ import { boxScore } from '../engine/stats';
 import { simulateMatch } from '../engine/match';
 import { DEFAULT_TACTICS } from '../engine/generate';
 import type { Player, Position, Tactics, Team } from '../engine/types';
+import { ageOn } from '../data/ratings';
 import { schema, type Db } from './db';
 
 const { clubs, clubCompetitions, competitions, playerAttributes, playerMatchStats, players, saves, users } = schema;
@@ -31,7 +32,7 @@ export async function loadTeam(db: Db, clubId: string, tactics?: Partial<Tactics
       cap: p.cap,
       position: p.position as Position,
       hand: p.hand as 'L' | 'R',
-      age: p.birthDate ? new Date(Date.now() - Date.parse(p.birthDate)).getUTCFullYear() - 1970 : 26,
+      age: p.birthDate ? ageOn(p.birthDate, new Date().toISOString().slice(0, 10)) : 25,
       attrs,
     };
   });

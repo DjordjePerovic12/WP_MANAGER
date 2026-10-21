@@ -172,3 +172,12 @@ describe('API', async () => {
     expect(a.box.teams[0].goals).toBe(a.result.score[0]);
   });
 });
+
+describe('data quality', () => {
+  it('ignores impossible birth dates from source typos', async () => {
+    const { plausibleBirthDate } = await import('../data/normalize');
+    expect(plausibleBirthDate('2026-02-21')).toBeUndefined();
+    expect(plausibleBirthDate('1999-05-01')).toBe('1999-05-01');
+    expect(plausibleBirthDate(undefined)).toBeUndefined();
+  });
+});

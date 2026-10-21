@@ -21,8 +21,10 @@ import { MatchPlayer } from '../match/MatchPlayer';
 import { TacticsFields } from '../TacticsFields';
 import { Fitness, SquadTab } from './SquadTab';
 import { NewsFeed, TrainingTab } from './TrainingTab';
+import { HistoryTab } from './HistoryTab';
+import { SeasonReview, SummerReport } from './SeasonReview';
 
-type Tab = 'overview' | 'squad' | 'training' | 'table' | 'fixtures' | 'stats';
+type Tab = 'overview' | 'squad' | 'training' | 'table' | 'fixtures' | 'stats' | 'history';
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 const formatDate = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
@@ -32,6 +34,8 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
   const [playing, setPlaying] = useState<{ fixture: Fixture; watchOnly: boolean } | null>(null);
   const [finishedResult, setFinishedResult] = useState<MatchResult | null>(null);
   const [lastRound, setLastRound] = useState<number | null>(null);
+  const [summerHidden, setSummerHidden] = useState(false);
+  const seasonStarted = career.fixtures.some((f) => f.result);
 
   const club = career.teams.find((t) => t.id === career.managedClubId)!;
   const table = leagueTable(career);
@@ -104,23 +108,34 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
           <span className="badge">
             Round <b>{round ?? totalRounds(career)}</b>/{totalRounds(career)}
           </span>
+          <span className="badge" title="Where the board expects you to finish">
+            Board: <b>{ordinal(career.expectation)}</b>
+          </span>
           <button onClick={onExit}>Save &amp; exit</button>
         </div>
       </div>
 
       <nav className="tabs sub-tabs">
-        {(['overview', 'squad', 'training', 'table', 'fixtures', 'stats'] as Tab[]).map((t) => (
+        {(['overview', 'squad', 'training', 'table', 'fixtures', 'stats', 'history'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {t[0].toUpperCase() + t.slice(1)}
           </button>
         ))}
       </nav>
 
+      {tab === 'overview' && career.summer && !seasonStarted && !summerHidden && <SummerReport career={career} onDismiss={() => setSummerHidden(true)} />}
       {tab === 'overview' && (
         <div className="career-grid">
           <div className="card">
             {seasonFinished(career) ? (
-              <SeasonEnd career={career} table={table} />
+              <SeasonReview
+                career={career}
+                onChange={(next) => {
+                  setLastRound(null);
+                  setSummerHidden(false);
+                  onChange(next);
+                }}
+              />
             ) : fixture ? (
               <>
                 <h3>Next match · Round {round}</h3>
@@ -171,6 +186,7 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
       {tab === 'squad' && <SquadTab career={career} onChange={onChange} />}
       {tab === 'training' && <TrainingTab career={career} onChange={onChange} />}
       {tab === 'stats' && <Stats career={career} />}
+      {tab === 'history' && <HistoryTab career={career} />}
       <p className="muted small">
         {career.generated.length > 0 && `Clubs marked * are generated: fictional names and players to complete the league. `}Your career is saved after every round.
       </p>
@@ -379,22 +395,6 @@ function Stats({ career }: { career: CareerState }) {
           })}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-function SeasonEnd({ career, table }: { career: CareerState; table: TableRow[] }) {
-  const champion = table[0];
-  const myPosition = table.findIndex((r) => r.clubId === career.managedClubId) + 1;
-  const champ = career.teams.find((t) => t.id === champion.clubId)!;
-  return (
-    <div className="season-end">
-      <h3>Season complete</h3>
-      <Crest team={champ} size={64} />
-      <p>
-        <b>{clubName(career, champion.clubId)}</b> are the {career.leagueName} champions with {champion.points} points.
-      </p>
-      <p>{myPosition === 1 ? '🏆 That is you: congratulations, champion!' : `Your club finished ${ordinal(myPosition)}.`}</p>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { overall, type Player } from '../../../engine';
-import { matchdaySquad, MATCHDAY_MINIMUM, MATCHDAY_SIZE, setSelection, validStarters, type CareerState } from '../../../game';
+import { matchdaySquad, MATCHDAY_MINIMUM, MATCHDAY_SIZE, potentialStars, setSelection, validStarters, type CareerState } from '../../../game';
+import { PlayerProfile } from './HistoryTab';
+import { Stars } from './SeasonReview';
 
 /** "1 GK · 3 C · 2 CD · 4 D · 2 W · 1 P" */
 function positionMix(players: Player[]) {
@@ -38,6 +40,7 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
   const isGk = (id: string) => byId.get(id)!.position === 'GK';
 
   const [message, setMessage] = useState('');
+  const [profile, setProfile] = useState<Player | null>(null);
 
   const toggleMatchday = (id: string) => {
     setMessage('');
@@ -92,6 +95,7 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
         </div>
       </div>
       {message && <p className="manager-message">{message}</p>}
+      {profile && <PlayerProfile career={career} player={club.players.find((x) => x.id === profile.id) ?? profile} onClose={() => setProfile(null)} />}
       <div className="table-scroll">
         <table className="squad-table manage">
           <thead>
@@ -103,6 +107,7 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
               <th>Pos</th>
               <th>Age</th>
               <th title="Overall rating">Ovr</th>
+              <th title="Potential (estimate)">Pot</th>
               <th>Fitness</th>
               <th>Status</th>
               <th title="Appearances">Apps</th>
@@ -128,10 +133,17 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
                     </button>
                   </td>
                   <td>{p.cap}</td>
-                  <td>{p.name}</td>
+                  <td>
+                    <button className="link" onClick={() => setProfile(p)}>
+                      {p.name}
+                    </button>
+                  </td>
                   <td>{p.position}</td>
                   <td>{p.age}</td>
                   <td>{overall(p).toFixed(1)}</td>
+                  <td>
+                    <Stars value={potentialStars(career.potential?.[p.id] ?? overall(p))} />
+                  </td>
                   <td>
                     <Fitness value={cond.condition} />
                   </td>

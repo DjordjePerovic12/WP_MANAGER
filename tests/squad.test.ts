@@ -19,6 +19,7 @@ import {
   simulateRound,
   validStarters,
   MATCHDAY_SIZE,
+  CAREER_VERSION,
   type CareerState,
 } from '../game';
 
@@ -140,7 +141,7 @@ describe('saves', () => {
   it('upgrades a version 1 save', () => {
     const { squad, training, morale, progress, news, ...old } = start();
     const migrated = migrateCareer({ ...old, version: 1 } as CareerState);
-    expect(migrated.version).toBe(2);
+    expect(migrated.version).toBe(CAREER_VERSION);
     expect(Object.keys(migrated.squad)).toHaveLength(Object.keys(squad).length);
     expect(migrated.training).toEqual(training);
     expect(Object.keys(migrated.morale)).toEqual(Object.keys(morale));
@@ -156,7 +157,7 @@ describe('robustness', () => {
     const round = nextRound(legacy)!;
     const mine = managedFixture(legacy, round) ?? legacy.fixtures.find((f) => f.round === round)!;
     const after = recordResult(legacy, mine.id, simulateFixture(legacy, mine), 'live', NOW);
-    expect(after.version).toBe(2);
+    expect(after.version).toBe(CAREER_VERSION);
     expect(simulateRound(after, round, NOW).fixtures.filter((f) => f.round === round).every((f) => f.result)).toBe(true);
   });
 });

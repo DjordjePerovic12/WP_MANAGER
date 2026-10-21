@@ -159,3 +159,12 @@ describe('position flexibility', () => {
     expect(live.state().teams[0].water).toContain(wing);
   });
 });
+
+describe('emergency goalkeeper', () => {
+  it('plays a field player in goal when no goalkeeper is available', () => {
+    const noKeepers = { ...home, players: home.players.filter((p) => p.position !== 'GK') };
+    const r = simulateMatch(noKeepers, away, { seed: 1 });
+    expect(r.events.at(-1)!.type).toBe('full_time');
+    expect(r.score[1]).toBeGreaterThan(0);
+  });
+});

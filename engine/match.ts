@@ -95,7 +95,9 @@ export function lineupFor(players: Player[], requested?: string[]): { water: Pla
 
 export function pickLineup(players: Player[]): { water: Player[]; bench: Player[] } {
   const keepers = players.filter((p) => p.position === 'GK').sort((a, b) => overall(b) - overall(a));
-  const remaining = players.filter((p) => p.position !== 'GK');
+  // No goalkeeper available: a field player goes in goal (the one with the best goalkeeping attributes).
+  if (!keepers.length) keepers.push(players.reduce((a, b) => (b.attrs.reflexes + b.attrs.gkPositioning > a.attrs.reflexes + a.attrs.gkPositioning ? b : a)));
+  const remaining = players.filter((p) => p.position !== 'GK' && p !== keepers[0]);
   const field: Player[] = [];
   for (const [i, slot] of LINEUP_SLOTS.entries()) {
     const candidates = remaining.filter((p) => p.position === slot);
