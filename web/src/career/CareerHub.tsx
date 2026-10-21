@@ -6,6 +6,8 @@ import {
   managedFixture,
   matchdaySquad,
   formatMoney,
+  transferWindow,
+  currentOffers,
   nextRound,
   recordResult,
   seasonFinished,
@@ -24,9 +26,10 @@ import { Fitness, SquadTab } from './SquadTab';
 import { NewsFeed, TrainingTab } from './TrainingTab';
 import { HistoryTab } from './HistoryTab';
 import { ClubTab } from './ClubTab';
+import { TransfersTab } from './TransfersTab';
 import { SeasonReview, SummerReport } from './SeasonReview';
 
-type Tab = 'overview' | 'squad' | 'training' | 'club' | 'table' | 'fixtures' | 'stats' | 'history';
+type Tab = 'overview' | 'squad' | 'training' | 'club' | 'transfers' | 'table' | 'fixtures' | 'stats' | 'history';
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 const formatDate = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
@@ -121,13 +124,27 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
       </div>
 
       <nav className="tabs sub-tabs">
-        {(['overview', 'squad', 'training', 'club', 'table', 'fixtures', 'stats', 'history'] as Tab[]).map((t) => (
+        {(['overview', 'squad', 'training', 'club', 'transfers', 'table', 'fixtures', 'stats', 'history'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {t[0].toUpperCase() + t.slice(1)}
           </button>
         ))}
       </nav>
 
+      {tab === 'overview' && transferWindow(career) && (
+        <div className="card window-banner open">
+          <div>
+            <b>{transferWindow(career) === 'summer' ? 'The summer transfer window is open' : 'The January transfer window is open'}</b>
+            <div className="muted small">
+              {currentOffers(career).length ? `${currentOffers(career).length} offer${currentOffers(career).length > 1 ? 's' : ''} for your players. ` : ''}Buy, sell and sign free agents before{' '}
+              {transferWindow(career) === 'summer' ? 'the first round' : 'January ends'}.
+            </div>
+          </div>
+          <button className="primary" onClick={() => setTab('transfers')}>
+            Go to transfers →
+          </button>
+        </div>
+      )}
       {tab === 'overview' && career.summer && !seasonStarted && !summerHidden && <SummerReport career={career} onDismiss={() => setSummerHidden(true)} />}
       {tab === 'overview' && (
         <div className="career-grid">
@@ -193,6 +210,7 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
       {tab === 'stats' && <Stats career={career} />}
       {tab === 'history' && <HistoryTab career={career} />}
       {tab === 'club' && <ClubTab career={career} onChange={onChange} />}
+      {tab === 'transfers' && <TransfersTab career={career} onChange={onChange} />}
       <p className="muted small">
         {career.generated.length > 0 && `Clubs marked * are generated: fictional names and players to complete the league. `}Your career is saved after every round.
       </p>

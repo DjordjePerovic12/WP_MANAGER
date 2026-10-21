@@ -109,7 +109,11 @@ describe('summer', () => {
     const ids = myTeam(next).players.map((p) => p.id);
     expect(ids).toContain(keep.id);
     for (const p of rest) expect(ids).not.toContain(p.id);
-    for (const p of rest.filter((x) => x.age < 35)) expect(next.freeAgents.some((f) => f.player.id === p.id) || !next.contracts[p.id]).toBe(true);
+    // Each one is now a free agent, retired, or already signed by another club.
+    for (const p of rest.filter((x) => x.age < 35)) {
+      const elsewhere = next.teams.some((t) => t.id !== next.managedClubId && t.players.some((x) => x.id === p.id));
+      expect(next.freeAgents.some((f) => f.player.id === p.id) || elsewhere || !next.contracts[p.id]).toBe(true);
+    }
     expect(next.summer!.contractsEnded.length).toBe(rest.length - next.summer!.retired.filter((r) => rest.some((p) => p.name === r.name)).length);
     expect(next.summer!.finance!.prizeMoney).toBeGreaterThan(0);
     for (const t of next.teams) for (const p of t.players) expect(next.contracts[p.id]?.until).toBeGreaterThanOrEqual(2027);

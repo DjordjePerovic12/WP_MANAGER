@@ -53,7 +53,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 /** Market value: ability (steeply), age and room to grow. */
 export function playerValue(p: Player, potential = overall(p)): number {
   const ovr = overall(p);
-  const base = 15000 * Math.pow(1.55, ovr - 10);
+  const base = 8000 * Math.pow(1.55, ovr - 10);
   const age = p.age <= 21 ? 1.3 : p.age <= 27 ? 1.1 : p.age <= 30 ? 0.9 : p.age <= 32 ? 0.6 : 0.3;
   const growth = 1 + Math.max(0, potential - ovr) * 0.15;
   return Math.max(5000, round1000(base * age * growth));
@@ -89,7 +89,7 @@ export function initialFinances(teams: Team[], contracts: Record<string, Contrac
     teams.map((t) => {
       const bill = wageBill(t, contracts);
       const revenue = round1000(bill * rng.range(1.1, 1.3));
-      return [t.id, { balance: round1000(revenue * rng.range(0.2, 0.45)), revenue, wageBudget: round1000(Math.max(bill * 1.05, revenue * 0.92)), ledger: [] }];
+      return [t.id, { balance: round1000(revenue * rng.range(0.3, 0.6)), revenue, wageBudget: round1000(Math.max(bill * 1.05, revenue * 0.92)), ledger: [] }];
     }),
   );
 }

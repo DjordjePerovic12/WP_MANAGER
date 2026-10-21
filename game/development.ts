@@ -10,6 +10,10 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
 export const MAX_SQUAD = 18;
+/** The most players a club can have registered (transfers stop here). */
+export const MAX_REGISTERED = 22;
+/** Real rosters list every registered youngster: careers start with each club's best 20. */
+export const START_SQUAD = 20;
 export const MIN_SQUAD = 13;
 /** Clubs aim for about this many players; the academy tops squads up toward it. */
 export const TARGET_SQUAD = 16;

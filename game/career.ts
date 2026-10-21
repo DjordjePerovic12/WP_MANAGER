@@ -11,10 +11,12 @@ import { simulateMatch } from '../engine/match';
 import type { Attributes, MatchOptions, MatchResult, Player, Tactics, Team } from '../engine/types';
 import { overall } from '../engine/ratings';
 import type { LeagueDef } from './leagues';
-import { boardExpectation, initialPotential } from './development';
+import { boardExpectation, initialPotential, START_SQUAD } from './development';
 import type { SeasonRecord, PlayerSeasonEntry, SummerReport } from './seasons';
+import type { Bid, IncomingOffer, TransferRecord } from './transfers';
 import { trainingWeek, type IndividualFocus, type TrainingReport } from './training';
 import {
+  expectedWage,
   initialContracts,
   initialFinances,
   renewalDemand,
@@ -41,7 +43,7 @@ import {
   type Training,
 } from './squad';
 
-export const CAREER_VERSION = 5;
+export const CAREER_VERSION = 6;
 const NEWS_KEPT = 60;
 export const SEASON = '2026-27';
 
@@ -141,6 +143,15 @@ export interface CareerState {
   freeAgents: FreeAgent[];
   /** contract talks this season with the manager's players */
   negotiations: Record<string, { attempts: number; closed?: boolean }>;
+  /** bids and personal-terms talks in the current transfer window */
+  bids: Record<string, Bid>;
+  bidsWindow?: string;
+  /** the manager's players up for sale */
+  transferList: string[];
+  /** clubs' offers for the manager's players */
+  offers: IncomingOffer[];
+  /** every transfer in the league */
+  transfers: TransferRecord[];
 }
 
 function potentials(teams: Team[], seed: number): Record<string, number> {
@@ -180,7 +191,19 @@ export function createCareer(options: { league: LeagueDef; realTeams: Team[]; ma
     const quality = hi - ((hi - lo) * i) / Math.max(1, missing - 1);
     return generateTeam(rng, `GEN-${league.id}-${short}`, name, short, quality);
   });
-  const teams = fixAges([...realTeams, ...generatedTeams].map((t) => ({ ...t, tactics: { ...DEFAULT_TACTICS, ...t.tactics } })));
+  const allTeams = fixAges([...realTeams, ...generatedTeams].map((t) => ({ ...t, tactics: { ...DEFAULT_TACTICS, ...t.tactics } })));
+  const allPotential = potentials(allTeams, seed);
+  // Real rosters list every registered youngster: keep each club's best 20, the rest start as free agents.
+  const surplus: { player: Player; fromClubId: string }[] = [];
+  const teams = allTeams.map((t) => {
+    if (t.players.length <= START_SQUAD) return t;
+    const worth = (p: Player) => overall(p) + Math.max(0, (allPotential[p.id] ?? 0) - overall(p)) * 0.5;
+    const keepers = t.players.filter((p) => p.position === 'GK').sort((a, b) => worth(b) - worth(a)).slice(0, 3);
+    const field = t.players.filter((p) => p.position !== 'GK').sort((a, b) => worth(b) - worth(a));
+    const kept = [...keepers, ...field.slice(0, START_SQUAD - keepers.length)];
+    for (const p of t.players) if (!kept.includes(p)) surplus.push({ player: p, fromClubId: t.id });
+    return { ...t, players: t.players.filter((p) => kept.includes(p)) };
+  });
   const now = options.now ?? new Date().toISOString();
   return {
     version: CAREER_VERSION,
@@ -202,15 +225,19 @@ export function createCareer(options: { league: LeagueDef; realTeams: Team[]; ma
     morale: Object.fromEntries(teams.map((t) => [t.id, DEFAULT_MORALE])),
     progress: {},
     news: [],
-    potential: potentials(teams, seed),
+    potential: allPotential,
     expectation: boardExpectation(teams, managedClubId),
     history: [],
     playerHistory: {},
     individual: {},
     trainingRatings: {},
-    ...moneyFor(teams, seed, seasonYear(SEASON), potentials(teams, seed)),
-    freeAgents: [],
+    ...moneyFor(teams, seed, seasonYear(SEASON), allPotential),
+    freeAgents: surplus.map(({ player, fromClubId }) => ({ player, fromClubId, potential: allPotential[player.id], askingWage: expectedWage(player, allPotential[player.id]) })),
     negotiations: {},
+    bids: {},
+    transferList: [],
+    offers: [],
+    transfers: [],
   };
 }
 
@@ -228,7 +255,7 @@ function fixAges(teams: Team[]): Team[] {
 
 export function migrateCareer(state: CareerState): CareerState {
   const teams = fixAges(state.teams);
-  if (state.version >= CAREER_VERSION && state.squad && state.news && state.potential && state.individual && state.contracts && teams === state.teams) return state;
+  if (state.version >= CAREER_VERSION && state.squad && state.news && state.potential && state.individual && state.contracts && state.transfers && teams === state.teams) return state;
   const potential = state.potential ?? potentials(teams, state.seed);
   const money = state.contracts && state.finances ? { contracts: state.contracts, finances: state.finances } : moneyFor(teams, state.seed, seasonYear(state.season), potential);
   return {
@@ -237,6 +264,10 @@ export function migrateCareer(state: CareerState): CareerState {
     ...money,
     freeAgents: state.freeAgents ?? [],
     negotiations: state.negotiations ?? {},
+    bids: state.bids ?? {},
+    transferList: state.transferList ?? [],
+    offers: state.offers ?? [],
+    transfers: state.transfers ?? [],
     individual: state.individual ?? {},
     trainingRatings: state.trainingRatings ?? {},
     version: CAREER_VERSION,

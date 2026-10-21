@@ -431,3 +431,16 @@ button.active-sort { border-color: var(--accent); color: var(--accent); }
 .talks-row td { text-align: left !important; white-space: normal !important; background: var(--bg); }
 .talks { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 6px 0; }
 .talks input[type=range] { vertical-align: middle; width: 160px; }
+
+/* ---- Transfers ---- */
+.transfers { display: grid; gap: 12px; }
+.window-banner { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.window-banner.open { border-color: #2a9d5c; background: color-mix(in srgb, #2a9d5c 8%, var(--card)); }
+.money-inline { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.money-inline b { color: var(--text); }
+.market-filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; font-size: 13px; }
+.market-filters input:not([type]) , .market-filters input[placeholder] { width: 180px; }
+.market-table td:nth-child(1), .market-table th:nth-child(1), .market-table td:nth-child(2), .market-table th:nth-child(2), .market-table td:nth-child(3), .market-table th:nth-child(3) { text-align: left; }
+.market-table tr.agreed td { background: color-mix(in srgb, #2a9d5c 10%, transparent); }
+.offer-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.offer-row > span:nth-child(2) { flex: 1; }

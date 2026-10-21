@@ -5,3 +5,4 @@ export * from './development';
 export * from './seasons';
 export * from './training';
 export * from './finance';
+export * from './transfers';

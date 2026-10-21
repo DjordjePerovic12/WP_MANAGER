@@ -19,6 +19,8 @@ import { boardExpectation, boardVerdict, developPlayer, intakeSize, MAX_SQUAD, M
 import { DEFAULT_MORALE, type NewsItem } from './squad';
 import { aiRenews, expectedWage, newContract, nextBudget, prizeMoney, wageBill, type Contract, type FreeAgent, type SeasonFinance } from './finance';
 
+import { aiTransferWindow, summerInterest, windowKey } from './transfers';
+
 const FREE_AGENTS_KEPT = 80;
 
 export interface Award {
@@ -281,7 +283,7 @@ export function startNextSeason(state: CareerState, now = new Date().toISOString
     ...report.contractsEnded.map((c) => ({ round: 0, kind: 'injury' as const, text: `${c.name} has left: his contract ran out.` })),
   ];
 
-  return {
+  const newSeason: CareerState = {
     ...state,
     updatedAt: now,
     season,
@@ -304,8 +306,15 @@ export function startNextSeason(state: CareerState, now = new Date().toISOString
     finances,
     freeAgents,
     negotiations: {},
+    bids: {},
+    offers: [],
+    transferList: [],
     news: [...state.news, ...news].slice(-60),
   };
+  // The summer transfer window opens: AI clubs do their business, and clubs bid for your best players.
+  const afterAi = aiTransferWindow(newSeason, rng);
+  const offers = summerInterest(afterAi, rng).map((o) => ({ ...o, window: windowKey(afterAi) }));
+  return { ...afterAi, offers, freeAgents: afterAi.freeAgents.slice(0, FREE_AGENTS_KEPT), expectation: boardExpectation(afterAi.teams, state.managedClubId) };
 }
 
 function ordinal(n: number) {
