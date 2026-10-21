@@ -8,11 +8,24 @@ import { boxScore } from '../engine/stats';
 import { createRng } from '../engine/rng';
 import { DEFAULT_TACTICS, generateTeam } from '../engine/generate';
 import { simulateMatch } from '../engine/match';
-import type { Attributes, MatchOptions, MatchResult, Tactics, Team } from '../engine/types';
+import type { Attributes, MatchOptions, MatchResult, Player, Tactics, Team } from '../engine/types';
+import { overall } from '../engine/ratings';
 import type { LeagueDef } from './leagues';
 import { boardExpectation, initialPotential } from './development';
 import type { SeasonRecord, PlayerSeasonEntry, SummerReport } from './seasons';
 import { trainingWeek, type IndividualFocus, type TrainingReport } from './training';
+import {
+  initialContracts,
+  initialFinances,
+  renewalDemand,
+  respondToOffer,
+  roundFinances,
+  wageBill,
+  type ClubFinances,
+  type Contract,
+  type FreeAgent,
+  type RenewalDemand,
+} from './finance';
 import {
   conditionAfterMatch,
   DEFAULT_MORALE,
@@ -28,7 +41,7 @@ import {
   type Training,
 } from './squad';
 
-export const CAREER_VERSION = 4;
+export const CAREER_VERSION = 5;
 const NEWS_KEPT = 60;
 export const SEASON = '2026-27';
 
@@ -120,6 +133,14 @@ export interface CareerState {
   trainingReport?: TrainingReport;
   /** recent training ratings per player (newest last) */
   trainingRatings: Record<string, number[]>;
+  /** every player's contract */
+  contracts: Record<string, Contract>;
+  /** every club's money */
+  finances: Record<string, ClubFinances>;
+  /** players without a club */
+  freeAgents: FreeAgent[];
+  /** contract talks this season with the manager's players */
+  negotiations: Record<string, { attempts: number; closed?: boolean }>;
 }
 
 function potentials(teams: Team[], seed: number): Record<string, number> {
@@ -187,7 +208,15 @@ export function createCareer(options: { league: LeagueDef; realTeams: Team[]; ma
     playerHistory: {},
     individual: {},
     trainingRatings: {},
+    ...moneyFor(teams, seed, seasonYear(SEASON), potentials(teams, seed)),
+    freeAgents: [],
+    negotiations: {},
   };
+}
+
+function moneyFor(teams: Team[], seed: number, year: number, potential: Record<string, number>) {
+  const contracts = initialContracts(teams, seed, year, potential);
+  return { contracts, finances: initialFinances(teams, contracts, seed) };
 }
 
 /** Bring an older save up to date. */
@@ -199,14 +228,19 @@ function fixAges(teams: Team[]): Team[] {
 
 export function migrateCareer(state: CareerState): CareerState {
   const teams = fixAges(state.teams);
-  if (state.version >= CAREER_VERSION && state.squad && state.news && state.potential && state.individual && teams === state.teams) return state;
+  if (state.version >= CAREER_VERSION && state.squad && state.news && state.potential && state.individual && state.contracts && teams === state.teams) return state;
+  const potential = state.potential ?? potentials(teams, state.seed);
+  const money = state.contracts && state.finances ? { contracts: state.contracts, finances: state.finances } : moneyFor(teams, state.seed, seasonYear(state.season), potential);
   return {
     ...state,
     teams,
+    ...money,
+    freeAgents: state.freeAgents ?? [],
+    negotiations: state.negotiations ?? {},
     individual: state.individual ?? {},
     trainingRatings: state.trainingRatings ?? {},
     version: CAREER_VERSION,
-    potential: state.potential ?? potentials(state.teams, state.seed),
+    potential,
     expectation: state.expectation ?? boardExpectation(state.teams, state.managedClubId),
     history: state.history ?? [],
     playerHistory: state.playerHistory ?? {},
@@ -482,8 +516,14 @@ export function simulateRound(input: CareerState, round: number, now?: string): 
     minutes: Object.fromEntries(Object.entries(next.playerStats).map(([id, s]) => [id, s.minutes])),
     roundsPlayed: round,
   });
+  // Wages out, income in.
+  const rounds = totalRounds(next);
+  const finances = Object.fromEntries(
+    week.teams.map((t) => [t.id, next.finances[t.id] ? roundFinances(next.finances[t.id], t, next.contracts, round, rounds, t.id === next.managedClubId) : next.finances[t.id]]),
+  );
   return {
     ...next,
+    finances,
     teams: week.teams,
     squad: week.squad,
     progress: week.progress,
@@ -491,6 +531,64 @@ export function simulateRound(input: CareerState, round: number, now?: string): 
     trainingRatings: week.ratings,
     news: [...next.news, ...week.news].slice(-NEWS_KEPT),
   };
+}
+
+// ---------------------------------------------------------------- contracts
+
+/** Players of the managed club whose contracts end this season. */
+export function expiringContracts(state: CareerState): Player[] {
+  const year = seasonYear(state.season);
+  const club = state.teams.find((t) => t.id === state.managedClubId)!;
+  return club.players.filter((p) => (state.contracts[p.id]?.until ?? year) <= year);
+}
+
+/** What a player of the managed club wants for a new contract. */
+export function contractDemand(state: CareerState, playerId: string): RenewalDemand {
+  const club = state.teams.find((t) => t.id === state.managedClubId)!;
+  const p = club.players.find((x) => x.id === playerId);
+  if (!p) throw new Error('Not one of your players');
+  const played = state.playerStats[playerId]?.minutes ?? 0;
+  const rounds = state.fixtures.filter((f) => f.result && (f.homeId === club.id || f.awayId === club.id)).length;
+  const share = rounds ? played / (rounds * 32) : 0.5;
+  return renewalDemand(p, state.potential[playerId] ?? overall(p), state.seed, share);
+}
+
+/** Room under the wage budget if this player's current wage were replaced. */
+export function wageRoom(state: CareerState, playerId?: string): number {
+  const club = state.teams.find((t) => t.id === state.managedClubId)!;
+  const f = state.finances[club.id];
+  return f.wageBudget - wageBill(club, state.contracts) + (playerId ? (state.contracts[playerId]?.wage ?? 0) : 0);
+}
+
+export interface OfferOutcome {
+  accepted: boolean;
+  message: string;
+  state: CareerState;
+}
+
+/**
+ * Offer a player of the managed club a new contract. The board refuses deals over
+ * the wage budget; the player may accept, refuse, or end the talks if insulted.
+ * At most three offers per player per season.
+ */
+export function offerContract(state: CareerState, playerId: string, wage: number, years: number): OfferOutcome {
+  const talks = state.negotiations[playerId] ?? { attempts: 0 };
+  if (talks.closed) return { accepted: false, message: 'He is not willing to talk any more this season.', state };
+  if (talks.attempts >= 3) return { accepted: false, message: 'Talks have broken down: try again next season.', state };
+  if (years < 1 || years > 5) return { accepted: false, message: 'Contracts run 1 to 5 seasons.', state };
+  if (wage > wageRoom(state, playerId)) return { accepted: false, message: 'The board will not approve it: this would break the wage budget.', state };
+  const demand = contractDemand(state, playerId);
+  let h = (state.seed ^ (talks.attempts + 1) * 7919) >>> 0;
+  for (const ch of `${state.season}/${playerId}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  const answer = respondToOffer(demand, wage, years, createRng(h));
+  const insulted = !answer.accepted && wage / demand.wage < 0.85;
+  const negotiations = { ...state.negotiations, [playerId]: { attempts: talks.attempts + 1, closed: answer.accepted || insulted } };
+  if (!answer.accepted) return { accepted: false, message: answer.message, state: { ...state, negotiations } };
+  const year = seasonYear(state.season);
+  const contracts = { ...state.contracts, [playerId]: { wage, until: Math.max(year, (state.contracts[playerId]?.until ?? year)) + years } };
+  const name = state.teams.flatMap((t) => t.players).find((p) => p.id === playerId)?.name ?? playerId;
+  const news = [...state.news, { round: nextRound(state) ?? 0, kind: 'result' as const, text: `${name} signs a new ${years}-season contract.` }].slice(-NEWS_KEPT);
+  return { accepted: true, message: answer.message, state: { ...state, contracts, negotiations, news } };
 }
 
 /** Give a player of the managed club his own training focus ('team' = follow the team plan). */

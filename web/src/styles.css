@@ -418,3 +418,16 @@ button.link { border: 0; background: none; padding: 0; color: inherit; font: inh
 .note-cell { white-space: normal !important; min-width: 220px; font-size: 12.5px; }
 .warn-text { color: var(--away); }
 button.active-sort { border-color: var(--accent); color: var(--accent); }
+
+/* ---- Club: finances and contracts ---- */
+.club { display: grid; gap: 12px; }
+.money-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.money-grid > div { display: flex; flex-direction: column; gap: 2px; }
+.money-grid b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.budget-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+.budget-bar span { display: block; height: 100%; }
+.contracts-table td:nth-child(2), .contracts-table th:nth-child(2), .contracts-table td:nth-child(3), .contracts-table th:nth-child(3) { text-align: left; }
+.contracts-table tr.ending td { background: color-mix(in srgb, #c0392b 8%, transparent); }
+.talks-row td { text-align: left !important; white-space: normal !important; background: var(--bg); }
+.talks { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 6px 0; }
+.talks input[type=range] { vertical-align: middle; width: 160px; }

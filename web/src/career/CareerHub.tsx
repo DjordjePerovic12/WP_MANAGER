@@ -5,6 +5,7 @@ import {
   leagueTable,
   managedFixture,
   matchdaySquad,
+  formatMoney,
   nextRound,
   recordResult,
   seasonFinished,
@@ -22,9 +23,10 @@ import { TacticsFields } from '../TacticsFields';
 import { Fitness, SquadTab } from './SquadTab';
 import { NewsFeed, TrainingTab } from './TrainingTab';
 import { HistoryTab } from './HistoryTab';
+import { ClubTab } from './ClubTab';
 import { SeasonReview, SummerReport } from './SeasonReview';
 
-type Tab = 'overview' | 'squad' | 'training' | 'table' | 'fixtures' | 'stats' | 'history';
+type Tab = 'overview' | 'squad' | 'training' | 'club' | 'table' | 'fixtures' | 'stats' | 'history';
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 const formatDate = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
@@ -108,6 +110,9 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
           <span className="badge">
             Round <b>{round ?? totalRounds(career)}</b>/{totalRounds(career)}
           </span>
+          <span className="badge" title="Club balance">
+            <b>{formatMoney(career.finances[club.id]?.balance ?? 0)}</b>
+          </span>
           <span className="badge" title="Where the board expects you to finish">
             Board: <b>{ordinal(career.expectation)}</b>
           </span>
@@ -116,7 +121,7 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
       </div>
 
       <nav className="tabs sub-tabs">
-        {(['overview', 'squad', 'training', 'table', 'fixtures', 'stats', 'history'] as Tab[]).map((t) => (
+        {(['overview', 'squad', 'training', 'club', 'table', 'fixtures', 'stats', 'history'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {t[0].toUpperCase() + t.slice(1)}
           </button>
@@ -187,6 +192,7 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
       {tab === 'training' && <TrainingTab career={career} onChange={onChange} />}
       {tab === 'stats' && <Stats career={career} />}
       {tab === 'history' && <HistoryTab career={career} />}
+      {tab === 'club' && <ClubTab career={career} onChange={onChange} />}
       <p className="muted small">
         {career.generated.length > 0 && `Clubs marked * are generated: fictional names and players to complete the league. `}Your career is saved after every round.
       </p>

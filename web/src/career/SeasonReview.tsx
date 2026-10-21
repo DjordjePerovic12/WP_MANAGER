@@ -1,4 +1,4 @@
-import { boardVerdict, potentialStars, seasonAwards, seasonRecord, startNextSeason, seasonYear, seasonLabel, type CareerState } from '../../../game';
+import { boardVerdict, expiringContracts, formatMoney, potentialStars, seasonAwards, seasonRecord, startNextSeason, seasonYear, seasonLabel, type CareerState } from '../../../game';
 import { Crest } from '../Crest';
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
@@ -46,8 +46,13 @@ export function SeasonReview({ career, onChange }: { career: CareerState; onChan
           </div>
         ))}
       </div>
+      {expiringContracts(career).length > 0 && (
+        <p className="warn-text small">
+          {expiringContracts(career).length} of your players' contracts end now: {expiringContracts(career).map((p) => p.name).join(', ')}. Renew them in the Club tab before starting the new season, or they leave.
+        </p>
+      )}
       <p className="muted small">
-        Over the summer players get a year older: youngsters develop, veterans decline and some retire, and academy players join every club.
+        Over the summer players get a year older: youngsters develop, veterans decline and some retire, and academy players join every club. Prize money is paid and the board sets next season's budget.
       </p>
       <button className="primary big" onClick={() => onChange(startNextSeason(career))}>
         Start the {next} season →
@@ -109,6 +114,28 @@ export function SummerReport({ career, onDismiss }: { career: CareerState; onDis
             </div>
           ))}
         </div>
+        {r.finance && (
+          <div>
+            <h4>Money</h4>
+            <div className="summer-row">
+              <span>Income</span>
+              <span>{formatMoney(r.finance.income)}</span>
+            </div>
+            <div className="summer-row">
+              <span>Prize money</span>
+              <span>{formatMoney(r.finance.prizeMoney)}</span>
+            </div>
+            <div className="summer-row">
+              <span>Wages</span>
+              <span>{formatMoney(-r.finance.wages)}</span>
+            </div>
+            <div className="summer-row">
+              <b>Season result</b>
+              <b className={r.finance.balanceChange < 0 ? 'down' : 'up'}>{formatMoney(r.finance.balanceChange)}</b>
+            </div>
+            <p className="muted small">New wage budget: {formatMoney(career.finances[career.managedClubId]?.wageBudget ?? 0)}.</p>
+          </div>
+        )}
         <div>
           <h4>Left the club</h4>
           {r.retired.filter((x) => x.clubId === career.managedClubId).map((x) => (
@@ -123,7 +150,13 @@ export function SummerReport({ career, onDismiss }: { career: CareerState; onDis
               <span className="muted small">released ({x.age})</span>
             </div>
           ))}
-          {!r.released.length && !r.retired.some((x) => x.clubId === career.managedClubId) && <p className="muted small">Nobody left.</p>}
+          {(r.contractsEnded ?? []).map((x) => (
+            <div key={`c-${x.name}`} className="summer-row">
+              <span>{x.name}</span>
+              <span className="muted small">contract ended ({x.age})</span>
+            </div>
+          ))}
+          {!r.released.length && !(r.contractsEnded ?? []).length && !r.retired.some((x) => x.clubId === career.managedClubId) && <p className="muted small">Nobody left.</p>}
           {r.retired.some((x) => x.clubId !== career.managedClubId) && (
             <p className="muted small">
               Around the league, retired: {r.retired.filter((x) => x.clubId !== career.managedClubId).map((x) => `${x.name} (${x.age})`).join(', ')}.
