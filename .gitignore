@@ -1,0 +1,9 @@
+data/cache/
+data/out/
+node_modules/
+web/dist/
+*.db
+local/
+web/public/logos/
+.claude/
+.DS_Store

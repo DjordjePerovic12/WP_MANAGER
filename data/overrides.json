@@ -1,0 +1,4 @@
+{
+  "_help": "Correct real-player data by hand. Key = player id from data/out/dataset.json. Any field of RealPlayer can be set, e.g. position (GK, CENTER, CDEF, DRIVER, WING, POINT), hand (L/R), heightCm.",
+  "players": {}
+}

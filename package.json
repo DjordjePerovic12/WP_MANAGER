@@ -1,0 +1,41 @@
+{
+  "name": "waterpolo-manager",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite web",
+    "build": "vite build web",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "play": "tsx sim/play.ts",
+    "batch": "tsx sim/batch.ts",
+    "data:fetch": "tsx data/fetch.ts",
+    "data:build": "tsx data/build.ts",
+    "data:report": "tsx data/report.ts",
+    "ratings:report": "tsx data/ratings-report.ts",
+    "db:seed": "tsx server/seed.ts",
+    "server": "tsx watch server/index.ts",
+    "data:replay": "tsx data/replay.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "playwright": "^1.64.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

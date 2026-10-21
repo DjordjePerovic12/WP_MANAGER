@@ -1,0 +1,12 @@
+-- Tables for the local SQLite database. Mirrors server/db/schema.ts.
+CREATE TABLE IF NOT EXISTS competitions (id TEXT PRIMARY KEY, name TEXT NOT NULL, tier INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS clubs (id TEXT PRIMARY KEY, name TEXT NOT NULL, short_name TEXT NOT NULL, country TEXT NOT NULL, rating REAL NOT NULL, playable INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS club_competitions (club_id TEXT NOT NULL REFERENCES clubs(id), competition_id TEXT NOT NULL REFERENCES competitions(id), PRIMARY KEY (club_id, competition_id));
+CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, club_id TEXT NOT NULL REFERENCES clubs(id), first_name TEXT NOT NULL, last_name TEXT NOT NULL, birth_date TEXT, nationality TEXT, cap INTEGER NOT NULL, height_cm INTEGER, hand TEXT NOT NULL, hand_guessed INTEGER NOT NULL, position TEXT NOT NULL, position_source TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS player_attributes (player_id TEXT PRIMARY KEY REFERENCES players(id), speed INTEGER NOT NULL, stamina INTEGER NOT NULL, shooting_power INTEGER NOT NULL, shooting_accuracy INTEGER NOT NULL, passing INTEGER NOT NULL, leg_strength INTEGER NOT NULL, wrestling INTEGER NOT NULL, positioning INTEGER NOT NULL, game_iq INTEGER NOT NULL, reflexes INTEGER NOT NULL, gk_positioning INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS matches (id TEXT PRIMARY KEY, competition_id TEXT NOT NULL REFERENCES competitions(id), round TEXT NOT NULL, date TEXT NOT NULL, venue TEXT NOT NULL, home_id TEXT NOT NULL REFERENCES clubs(id), away_id TEXT NOT NULL REFERENCES clubs(id), home_score INTEGER NOT NULL, away_score INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS player_match_stats (match_id TEXT NOT NULL REFERENCES matches(id), player_id TEXT NOT NULL REFERENCES players(id), goals INTEGER NOT NULL, attempts INTEGER NOT NULL, extra_goals INTEGER NOT NULL, assists INTEGER NOT NULL, steals INTEGER NOT NULL, blocks INTEGER NOT NULL, exclusions INTEGER NOT NULL, saves INTEGER NOT NULL, shots_faced INTEGER NOT NULL, PRIMARY KEY (match_id, player_id));
+CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS saves (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), name TEXT NOT NULL, club_id TEXT NOT NULL REFERENCES clubs(id), state TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS players_club ON players(club_id);
+CREATE INDEX IF NOT EXISTS stats_player ON player_match_stats(player_id);
