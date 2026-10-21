@@ -76,7 +76,8 @@ export type EventType =
   | 'timeout'
   | 'sub'
   | 'tactics'
-  | 'brutality';
+  | 'brutality'
+  | 'injury';
 
 export interface MatchEvent {
   quarter: number;          // 1–4, 5 = penalty shootout
@@ -109,6 +110,14 @@ export interface MatchOptions {
   managed?: [boolean, boolean];
   /** Let the assistant coach make rolling substitutions for managed teams (default true). */
   autoSubs?: boolean;
+  /** Energy (0–100) each player starts the match with, e.g. after a hard week. Default 100. */
+  initialEnergy?: Record<string, number>;
+  /** Starting seven per team (goalkeeper first, then six field players). Unset = the coach picks. */
+  lineups?: [string[] | undefined, string[] | undefined];
+  /** Added to each team's match-day form, e.g. from morale (about −0.03 to +0.03). */
+  formBonus?: [number, number];
+  /** Allow in-match injuries (default true). */
+  injuries?: boolean;
 }
 
 /** Energy (0–100) of every player at a point in the match, recorded after each possession. */

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { teamRating } from '../../../engine';
-import { createCareer, LEAGUES, type CareerState, type LeagueDef } from '../../../game';
+import { createCareer, LEAGUES, migrateCareer, type CareerState, type LeagueDef } from '../../../game';
 import type { League } from '../api';
 import { Crest } from '../Crest';
 import { CareerHub } from './CareerHub';
@@ -47,7 +47,7 @@ export function CareerView({ league }: { league: League }) {
   const open = async (id: string) => {
     const res = await fetch(`/api/saves/${encodeURIComponent(id)}`);
     if (!res.ok) return setError('Could not load that career.');
-    setCareer((await res.json()).state as CareerState);
+    setCareer(migrateCareer((await res.json()).state as CareerState));
   };
 
   const remove = async (id: string) => {

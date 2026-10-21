@@ -6,6 +6,7 @@ import {
   LiveMatch,
   playerLookup,
   type MatchEvent,
+  type MatchOptions,
   type MatchResult,
   type Team,
 } from '../../../engine';
@@ -74,6 +75,8 @@ export interface MatchPlayerProps {
   /** the team the user manages live (0 = home, 1 = away), or null to just watch */
   manage: 0 | 1 | null;
   initialSpeed?: Speed;
+  /** extra engine options, e.g. starting energy, lineups and morale in career matches */
+  options?: MatchOptions;
   /** called once when the final whistle has been shown */
   onFinished?: (result: MatchResult) => void;
 }
@@ -82,7 +85,7 @@ export interface MatchPlayerProps {
  * Plays a match: starts on mount, steps the live engine as the viewer needs it,
  * and shows the scoreboard, pool view, manager controls, commentary and box score.
  */
-export function MatchPlayer({ home, away, seed, shootoutOnDraw, manage, initialSpeed = 'Normal', onFinished }: MatchPlayerProps) {
+export function MatchPlayer({ home, away, seed, shootoutOnDraw, manage, initialSpeed = 'Normal', options, onFinished }: MatchPlayerProps) {
   const [speed, setSpeed] = useState<Speed>(initialSpeed);
   const [sound, setSound] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -94,7 +97,7 @@ export function MatchPlayer({ home, away, seed, shootoutOnDraw, manage, initialS
 
   // Kick off on mount.
   useEffect(() => {
-    const live = new LiveMatch([home, away], { seed, shootoutOnDraw, managed: [manage === 0, manage === 1] });
+    const live = new LiveMatch([home, away], { ...options, seed, shootoutOnDraw, managed: [manage === 0, manage === 1] });
     liveRef.current = live;
     reported.current = false;
     if (SPEEDS[initialSpeed] === null) while (!live.finished) live.step();

@@ -1,17 +1,17 @@
 import { useState } from 'react';
-import { overall, type MatchResult } from '../../../engine';
+import type { MatchResult } from '../../../engine';
 import {
   findPlayer,
   leagueTable,
   managedFixture,
+  matchdaySquad,
   nextRound,
   recordResult,
   seasonFinished,
   simulateRound,
-  teamFor,
   topScorers,
   totalRounds,
-  fixtureSeed,
+  matchSetup,
   type CareerState,
   type Fixture,
   type TableRow,
@@ -19,8 +19,10 @@ import {
 import { Crest } from '../Crest';
 import { MatchPlayer } from '../match/MatchPlayer';
 import { TacticsFields } from '../TacticsFields';
+import { Fitness, SquadTab } from './SquadTab';
+import { NewsFeed, TrainingTab } from './TrainingTab';
 
-type Tab = 'overview' | 'table' | 'fixtures' | 'squad' | 'stats';
+type Tab = 'overview' | 'squad' | 'training' | 'table' | 'fixtures' | 'stats';
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 const formatDate = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
@@ -52,8 +54,7 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
   };
 
   if (playing) {
-    const home = teamFor(career, playing.fixture.homeId);
-    const away = teamFor(career, playing.fixture.awayId);
+    const setup = matchSetup(career, playing.fixture);
     return (
       <section>
         <div className="career-match-head card">
@@ -69,9 +70,10 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
           )}
         </div>
         <MatchPlayer
-          home={home}
-          away={away}
-          seed={fixtureSeed(career, playing.fixture)}
+          home={setup.home}
+          away={setup.away}
+          seed={setup.options.seed}
+          options={setup.options}
           shootoutOnDraw={false}
           manage={playing.watchOnly ? null : playing.fixture.homeId === club.id ? 0 : 1}
           onFinished={setFinishedResult}
@@ -107,7 +109,7 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
       </div>
 
       <nav className="tabs sub-tabs">
-        {(['overview', 'table', 'fixtures', 'squad', 'stats'] as Tab[]).map((t) => (
+        {(['overview', 'squad', 'training', 'table', 'fixtures', 'stats'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {t[0].toUpperCase() + t.slice(1)}
           </button>
@@ -131,6 +133,7 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
                   </div>
                   <TeamBadge career={career} id={fixture.awayId} table={table} />
                 </div>
+                <Readiness career={career} />
                 <h4>Your tactics</h4>
                 <TacticsFields tactics={career.tactics} onChange={(t) => onChange({ ...career, tactics: t })} />
                 <div className="controls">
@@ -156,6 +159,7 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
             <LeagueTable career={career} table={table} compact />
           </div>
           {lastRound !== null && <RoundResults career={career} round={lastRound} />}
+          <NewsFeed career={career} />
         </div>
       )}
       {tab === 'table' && (
@@ -164,12 +168,40 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
         </div>
       )}
       {tab === 'fixtures' && <Fixtures career={career} />}
-      {tab === 'squad' && <Squad career={career} />}
+      {tab === 'squad' && <SquadTab career={career} onChange={onChange} />}
+      {tab === 'training' && <TrainingTab career={career} onChange={onChange} />}
       {tab === 'stats' && <Stats career={career} />}
       <p className="muted small">
         {career.generated.length > 0 && `Clubs marked * are generated: fictional names and players to complete the league. `}Your career is saved after every round.
       </p>
     </section>
+  );
+}
+
+/** Squad readiness for the next match: fitness, injuries, morale. */
+function Readiness({ career }: { career: CareerState }) {
+  const club = career.teams.find((t) => t.id === career.managedClubId)!;
+  const squad = matchdaySquad(career, club.id);
+  const fitness = Math.round(squad.reduce((s, id) => s + (career.squad[id]?.condition ?? 100), 0) / squad.length);
+  const injured = club.players.filter((p) => career.squad[p.id]?.injury).length;
+  const tired = squad.filter((id) => (career.squad[id]?.condition ?? 100) < 60).length;
+  return (
+    <div className="readiness">
+      <span>
+        Fitness <b>{fitness}%</b> <Fitness value={fitness} />
+      </span>
+      <span>
+        Morale <b>{career.morale[club.id] ?? 60}</b>
+      </span>
+      <span className={injured ? 'warn' : ''}>
+        Injured <b>{injured}</b>
+      </span>
+      {tired > 0 && (
+        <span className="warn">
+          {tired} tired in your 13
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -316,55 +348,6 @@ function Fixtures({ career }: { career: CareerState }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function Squad({ career }: { career: CareerState }) {
-  const club = career.teams.find((t) => t.id === career.managedClubId)!;
-  return (
-    <div className="card">
-      <table className="squad-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Name</th>
-            <th>Pos</th>
-            <th>Age</th>
-            <th title="Overall rating">Ovr</th>
-            <th title="Appearances">Apps</th>
-            <th title="Minutes">Min</th>
-            <th title="Goals">G</th>
-            <th title="Shots">Sh</th>
-            <th title="Assists">A</th>
-            <th title="Exclusions drawn">ExD</th>
-            <th title="Personal fouls">PF</th>
-            <th title="Saves">Sv</th>
-          </tr>
-        </thead>
-        <tbody>
-          {club.players.map((p) => {
-            const s = career.playerStats[p.id];
-            return (
-              <tr key={p.id}>
-                <td>{p.cap}</td>
-                <td>{p.name}</td>
-                <td>{p.position}</td>
-                <td>{p.age}</td>
-                <td>{overall(p).toFixed(1)}</td>
-                <td>{s?.apps ?? 0}</td>
-                <td>{s?.minutes ?? 0}</td>
-                <td>{s?.goals || ''}</td>
-                <td>{s?.shots || ''}</td>
-                <td>{s?.assists || ''}</td>
-                <td>{s?.exclusionsDrawn || ''}</td>
-                <td>{s?.fouls || ''}</td>
-                <td>{s?.saves || ''}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
     </div>
   );
 }

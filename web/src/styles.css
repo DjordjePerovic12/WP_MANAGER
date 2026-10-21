@@ -260,7 +260,7 @@ tr.fouled-out td { color: var(--away); }
 .manager-tactics { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 12px; }
 .manager-squad { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
 .squad-row {
-  display: grid; grid-template-columns: 24px 1fr 52px 60px 30px; align-items: center; gap: 6px;
+  display: grid; grid-template-columns: 24px 1fr 86px 60px 30px; align-items: center; gap: 6px;
   width: 100%; text-align: left; padding: 4px 8px; margin-top: 3px; border-radius: 6px; font-size: 12.5px;
 }
 .squad-row.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--card)); }
@@ -326,3 +326,37 @@ tr.fouled-out td { color: var(--away); }
 .card:has(> .squad-table) { overflow-x: auto; }
 .career-match-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .season-end { text-align: center; }
+
+/* ---- Squad management ---- */
+.squad-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.squad-head h3 { margin: 0 0 4px; }
+.squad-summary { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.badge.warn, .readiness .warn { color: var(--away); }
+.table-scroll { overflow-x: auto; }
+.squad-table.manage td:first-child, .squad-table.manage th:first-child, .squad-table.manage td:nth-child(2), .squad-table.manage th:nth-child(2) { text-align: center; }
+.squad-table.manage th:nth-child(4), .squad-table.manage td:nth-child(4), .squad-table.manage th:nth-child(5), .squad-table.manage td:nth-child(5) { text-align: left; }
+.squad-table.manage th:nth-child(2), .squad-table.manage td:nth-child(2) { width: 40px; }
+.squad-table.manage th:nth-child(3), .squad-table.manage td:nth-child(3) { text-align: right; }
+.squad-table tr.injured td { opacity: 0.55; }
+.squad-table tr.in-squad td:nth-child(4) { font-weight: 600; }
+.star { border: 0; background: none; padding: 0 4px; font-size: 16px; color: var(--border); }
+.star.on { color: #ffb703; }
+.star:disabled { opacity: 0.3; }
+.fitness { display: inline-block; vertical-align: middle; width: 64px; height: 7px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.fitness span { display: block; height: 100%; }
+.injury-tag { color: var(--away); font-size: 12px; white-space: nowrap; }
+.readiness { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+.readiness b { color: var(--text); }
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.choice-grid.three { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.choice { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 10px 12px; }
+.choice.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.injury-row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.news { grid-column: 1 / -1; }
+.news-item { display: flex; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.news-injury { color: var(--away); }
+
+.squad-row.best-fit { border-color: #2a9d5c; box-shadow: 0 0 0 1px #2a9d5c inset; }
+.squad-row.unsuitable { opacity: 0.35; }
+.fit-score { display: inline-block; margin-left: 4px; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.fit-score.same { color: #2a9d5c; font-weight: 700; }

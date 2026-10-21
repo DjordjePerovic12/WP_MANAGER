@@ -32,6 +32,8 @@ type Side = {
   pendingTimeout: boolean;
   /** A player sent off for brutality: the team plays a man down until `until` (game seconds). */
   sentOff?: { id: string; until: number };
+  /** The role of each water slot (index 0 = goalkeeper). The coach's default shape, or the manager's own lineup. */
+  slots: Position[];
 };
 
 type Phase = 'quarter_start' | 'play' | 'shootout' | 'finished';
@@ -68,10 +70,28 @@ interface PossessionResult {
 /** Field slots in water order (water[1..6]). Slot 3 is the right driver (position 2), slot 5 the right wing (position 1). */
 const LINEUP_SLOTS: Position[] = ['CENTER', 'CDEF', 'DRIVER', 'DRIVER', 'WING', 'POINT'];
 const RIGHT_SIDE = new Set([3, 5]);
-const slotPosition = (waterIndex: number): Position => (waterIndex === 0 ? 'GK' : LINEUP_SLOTS[waterIndex - 1]);
+
+/** Big men (2m) and perimeter players: positions within a family are close to interchangeable. */
+const POSITION_FAMILY: Record<Position, string> = { GK: 'gk', CENTER: 'big', CDEF: 'big', DRIVER: 'perimeter', WING: 'perimeter', POINT: 'perimeter' };
+
+/** How well a player suits a role, as a coach sees it: 1 = his own position. */
+export function positionFit(playerPosition: Position, role: Position): number {
+  if (playerPosition === role) return 1;
+  return POSITION_FAMILY[playerPosition] === POSITION_FAMILY[role] ? T.relatedPositionFactor : T.outOfPositionFactor;
+}
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const avg = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
+
+/** The starting seven: the requested lineup when it is valid (a goalkeeper and six field players from the squad), else the coach's pick. */
+export function lineupFor(players: Player[], requested?: string[]): { water: Player[]; bench: Player[]; custom: boolean } {
+  if (requested?.length === 7) {
+    const chosen = requested.map((id) => players.find((p) => p.id === id));
+    const valid = chosen.every(Boolean) && new Set(requested).size === 7 && chosen[0]!.position === 'GK' && chosen.slice(1).every((p) => p!.position !== 'GK');
+    if (valid) return { water: chosen as Player[], bench: players.filter((p) => !requested.includes(p.id)), custom: true };
+  }
+  return { ...pickLineup(players), custom: false };
+}
 
 export function pickLineup(players: Player[]): { water: Player[]; bench: Player[] } {
   const keepers = players.filter((p) => p.position === 'GK').sort((a, b) => overall(b) - overall(a));
@@ -134,6 +154,7 @@ export class LiveMatch {
   private shootoutTally?: [number, number];
   private snapshots: EnergySnapshot[] = [];
   private readonly shootoutOnDraw: boolean;
+  private readonly injuriesOn: boolean;
   readonly seed: number;
 
   constructor(private teams: [Team, Team], options: MatchOptions = {}) {
@@ -143,21 +164,25 @@ export class LiveMatch {
     const aiCoach = options.aiCoach ?? true;
     const coach = typeof aiCoach === 'boolean' ? [aiCoach, aiCoach] : aiCoach;
     const managed = options.managed ?? [false, false];
+    this.injuriesOn = options.injuries ?? true;
     this.sides = [
-      this.makeSide(teams[0], 0, coach[0] && !managed[0], managed[0], options.autoSubs ?? true),
-      this.makeSide(teams[1], 1, coach[1] && !managed[1], managed[1], options.autoSubs ?? true),
+      this.makeSide(teams[0], 0, coach[0] && !managed[0], managed[0], options.autoSubs ?? true, options.lineups?.[0]),
+      this.makeSide(teams[1], 1, coach[1] && !managed[1], managed[1], options.autoSubs ?? true, options.lineups?.[1]),
     ];
     const formNoise = () => (this.rng.next() + this.rng.next() + this.rng.next() - 1.5) * 2 * T.matchFormSpread;
-    this.form = [formNoise(), formNoise()];
+    this.form = [formNoise() + (options.formBonus?.[0] ?? 0), formNoise() + (options.formBonus?.[1] ?? 0)];
     for (const t of teams) for (const p of t.players) {
-      this.energy.set(p.id, 100);
+      this.energy.set(p.id, clamp(options.initialEnergy?.[p.id] ?? 100, 0, 100));
       this.seconds.set(p.id, 0);
     }
   }
 
-  private makeSide(team: Team, idx: 0 | 1, aiCoach: boolean, managed: boolean, autoSubs: boolean): Side {
-    const { water, bench } = pickLineup(team.players);
+  private makeSide(team: Team, idx: 0 | 1, aiCoach: boolean, managed: boolean, autoSubs: boolean, lineup?: string[]): Side {
+    const { water, bench, custom } = lineupFor(team.players, lineup);
+    // With the manager's own lineup, each player's position is his role: 3 centers stay 3 centers.
+    const slots: Position[] = custom ? water.map((p) => p.position) : ['GK', ...LINEUP_SLOTS];
     return {
+      slots,
       idx, team, tactics: { ...team.tactics }, aiCoach, water, bench, fouls: new Map(), fouledOut: new Set(), timeouts: T.timeouts, concededRun: 0,
       managed, autoSubs: !managed || autoSubs, pendingTimeout: false,
     };
@@ -242,7 +267,24 @@ export class LiveMatch {
     if ((waterIndex === 0) !== (incoming.position === 'GK')) return 'Goalkeepers can only be replaced by goalkeepers.';
     if (side.excluded === outId) return 'An excluded player cannot be substituted until the exclusion ends.';
     this.swap(side, waterIndex, incoming, this.t);
+    // The manager decides the shape: the slot now plays in the incoming player's position.
+    side.slots[waterIndex] = incoming.position;
     return null;
+  }
+
+  /**
+   * Bench players ranked by how well they would fill the given water slot right now
+   * (rating in that role, out-of-position penalty, fitness). Best first.
+   */
+  recommendSubs(team: 0 | 1, outId: string): { id: string; score: number; role: Position }[] {
+    const side = this.sides[team];
+    const waterIndex = side.water.findIndex((p) => p.id === outId);
+    if (waterIndex < 0) return [];
+    const role = side.slots[waterIndex];
+    return side.bench
+      .filter((b) => !side.fouledOut.has(b.id) && (waterIndex === 0) === (b.position === 'GK'))
+      .map((b) => ({ id: b.id, score: Math.round(this.subValue(side, b, waterIndex) * 10) / 10, role }))
+      .sort((a, b) => b.score - a.score);
   }
 
   /** Everything a manager needs to decide the next move. */
@@ -332,6 +374,7 @@ export class LiveMatch {
     const elapsed = Math.min(res.elapsed + swim, T.quarterSeconds - t);
     this.applyFatigue(elapsed);
     this.t = t + elapsed;
+    if (this.injuriesOn) for (const side of this.sides) this.maybeInjury(side, elapsed);
     for (const side of this.sides) this.replaceFouledOut(side, this.t);
     this.poss = (1 - this.poss) as 0 | 1;
     this.transition = res.transition;
@@ -676,9 +719,9 @@ export class LiveMatch {
 
   /** How well a player would fill water slot i right now, as the coach sees it. */
   private subValue(side: Side, p: Player, waterIndex: number) {
-    const slot = slotPosition(waterIndex);
+    const slot = side.slots[waterIndex];
     let value = overall(p, slot) * this.fitness(p);
-    if (p.position !== slot) value *= T.outOfPositionFactor;
+    value *= positionFit(p.position, slot);
     if (RIGHT_SIDE.has(waterIndex) && p.hand === 'L') value += T.rightLeftyLineupBonus;
     // Everyone gets some minutes: a bench player who has barely played looks a little more attractive.
     if (side.bench.includes(p) && this.quarter >= 2) value *= 1 + T.rotationBonus * Math.max(0, 1 - this.seconds.get(p.id)! / T.rotationTargetSeconds);
@@ -765,6 +808,17 @@ export class LiveMatch {
   /** A left-hander playing on the right side (right wing or right driver). */
   private rightLefty(side: Side, p: Player) {
     return p.hand === 'L' && RIGHT_SIDE.has(side.water.indexOf(p));
+  }
+
+  /** A player in the water may get injured; tired players are more at risk. They leave the match for good. */
+  private maybeInjury(side: Side, seconds: number) {
+    for (const p of this.field(side)) {
+      const tiredness = 1 + (100 - this.energy.get(p.id)!) / T.injuryFatigueScale;
+      if (!this.rng.chance(T.injuryPerSecond * seconds * tiredness)) continue;
+      side.fouledOut.add(p.id);
+      this.emit({ type: 'injury', team: side.idx, player: p.id }, this.t);
+      return; // at most one per possession
+    }
   }
 
   private applyFatigue(seconds: number) {

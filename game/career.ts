@@ -8,10 +8,26 @@ import { boxScore } from '../engine/stats';
 import { createRng } from '../engine/rng';
 import { DEFAULT_TACTICS, generateTeam } from '../engine/generate';
 import { simulateMatch } from '../engine/match';
-import type { MatchResult, Tactics, Team } from '../engine/types';
+import type { Attributes, MatchOptions, MatchResult, Tactics, Team } from '../engine/types';
 import type { LeagueDef } from './leagues';
+import {
+  conditionAfterMatch,
+  DEFAULT_MORALE,
+  DEFAULT_TRAINING,
+  matchInjuries,
+  moraleAfter,
+  moraleBonus,
+  pickMatchday,
+  trainingWeek,
+  validStarters,
+  type NewsItem,
+  type PlayerCondition,
+  type Selection,
+  type Training,
+} from './squad';
 
-export const CAREER_VERSION = 1;
+export const CAREER_VERSION = 2;
+const NEWS_KEPT = 60;
 export const SEASON = '2026-27';
 const SEASON_START = '2026-10-03'; // first Saturday of October
 const POINTS = { win: 3, draw: 1, loss: 0 };
@@ -63,6 +79,18 @@ export interface CareerState {
   playerStats: Record<string, PlayerSeason>;
   /** the manager's tactics for their own team */
   tactics: Tactics;
+  /** fitness and injuries of every player in the league */
+  squad: Record<string, PlayerCondition>;
+  /** the managed club's weekly training */
+  training: Training;
+  /** team morale per club (0–100) */
+  morale: Record<string, number>;
+  /** the manager's matchday squad and starting seven (the assistant fills gaps) */
+  selection?: Selection;
+  /** training progress toward the next attribute point, per player */
+  progress: Record<string, Partial<Record<keyof Attributes, number>>>;
+  /** latest news about the managed club, newest last */
+  news: NewsItem[];
 }
 
 export interface TableRow {
@@ -114,6 +142,25 @@ export function createCareer(options: { league: LeagueDef; realTeams: Team[]; ma
     fixtures: makeSchedule(teams.map((t) => t.id), seed),
     playerStats: {},
     tactics: { ...teams.find((t) => t.id === managedClubId)!.tactics },
+    squad: Object.fromEntries(teams.flatMap((t) => t.players.map((p) => [p.id, { condition: 100 }]))),
+    training: { ...DEFAULT_TRAINING },
+    morale: Object.fromEntries(teams.map((t) => [t.id, DEFAULT_MORALE])),
+    progress: {},
+    news: [],
+  };
+}
+
+/** Bring an older save up to date. */
+export function migrateCareer(state: CareerState): CareerState {
+  if (state.version >= CAREER_VERSION && state.squad && state.news) return state;
+  return {
+    ...state,
+    version: CAREER_VERSION,
+    squad: state.squad ?? Object.fromEntries(state.teams.flatMap((t) => t.players.map((p) => [p.id, { condition: 100 }]))),
+    training: state.training ?? { ...DEFAULT_TRAINING },
+    morale: state.morale ?? Object.fromEntries(state.teams.map((t) => [t.id, DEFAULT_MORALE])),
+    progress: state.progress ?? {},
+    news: state.news ?? [],
   };
 }
 
@@ -136,7 +183,7 @@ export function makeSchedule(teamIds: string[], seed: number): Fixture[] {
     const j = Math.floor(rng.next() * (i + 1));
     [ids[i], ids[j]] = [ids[j], ids[i]];
   }
-  if (ids.length % 2) ids.push(null); // bye
+  if (ids.length % 2) ids.unshift(null); // the bye takes the fixed slot, so every club keeps alternating
   const n = ids.length;
   const firstHalf: [string, string][][] = [];
   const rotation = [...ids];
@@ -146,8 +193,10 @@ export function makeSchedule(teamIds: string[], seed: number): Fixture[] {
       const a = rotation[i];
       const b = rotation[n - 1 - i];
       if (!a || !b) continue;
-      // Alternate home and away so nobody plays at home every week.
-      pairs.push((round + i) % 2 === 0 ? [a, b] : [b, a]);
+      // Berger rule: the fixed club alternates every round, the others by table position,
+      // so nobody plays more than two home or away matches in a row (three at the half-way turn).
+      const firstAtHome = i === 0 ? round % 2 === 0 : i % 2 === 1;
+      pairs.push(firstAtHome ? [a, b] : [b, a]);
     }
     firstHalf.push(pairs);
     rotation.splice(1, 0, rotation.pop()!);
@@ -243,7 +292,8 @@ export function findPlayer(state: CareerState, playerId: string) {
 const emptySeason = (): PlayerSeason => ({ apps: 0, goals: 0, shots: 0, assists: 0, exclusionsDrawn: 0, fouls: 0, saves: 0, minutes: 0 });
 
 /** Store a finished match in the career and add it to the players' season statistics. */
-export function recordResult(state: CareerState, fixtureId: string, result: MatchResult, played: FixtureResult['played'], now = new Date().toISOString()): CareerState {
+export function recordResult(input: CareerState, fixtureId: string, result: MatchResult, played: FixtureResult['played'], now = new Date().toISOString()): CareerState {
+  const state = migrateCareer(input);
   const fixture = state.fixtures.find((f) => f.id === fixtureId);
   if (!fixture) throw new Error(`Unknown fixture ${fixtureId}`);
   if (fixture.result) throw new Error(`Fixture ${fixtureId} has already been played`);
@@ -266,6 +316,35 @@ export function recordResult(state: CareerState, fixtureId: string, result: Matc
     playerStats[id] = season;
     if (s.goals) scorers.push({ playerId: id, goals: s.goals });
   }
+  // Fitness: players lose condition by minutes played.
+  const squad = { ...state.squad };
+  for (const [id, s] of Object.entries(box.players)) {
+    if (!s.seconds) continue;
+    squad[id] = { ...(squad[id] ?? { condition: 100 }), condition: conditionAfterMatch(squad[id]?.condition ?? 100, s.seconds / 60) };
+  }
+  const news = [...state.news];
+  const managedSide = fixture.homeId === state.managedClubId ? 0 : fixture.awayId === state.managedClubId ? 1 : undefined;
+  for (const { playerId, team, injury } of matchInjuries(result)) {
+    squad[playerId] = { ...(squad[playerId] ?? { condition: 100 }), injury };
+    if (team === managedSide) {
+      const name = result.teams[team].players.find((p) => p.id === playerId)?.name ?? playerId;
+      news.push({ round: fixture.round, kind: 'injury', text: `${name} was injured in the match (${injury.name.toLowerCase()}): out for ${injury.weeksLeft} week${injury.weeksLeft > 1 ? 's' : ''}.` });
+    }
+  }
+  // Morale follows results.
+  const [hg, ag] = result.score;
+  const morale = {
+    ...state.morale,
+    [fixture.homeId]: moraleAfter(state.morale[fixture.homeId] ?? DEFAULT_MORALE, hg, ag),
+    [fixture.awayId]: moraleAfter(state.morale[fixture.awayId] ?? DEFAULT_MORALE, ag, hg),
+  };
+  if (managedSide !== undefined) {
+    const [mine, theirs] = managedSide === 0 ? [hg, ag] : [ag, hg];
+    const opponent = state.teams.find((t) => t.id === (managedSide === 0 ? fixture.awayId : fixture.homeId))!.name;
+    const verb = mine > theirs ? 'Won' : mine === theirs ? 'Drew' : 'Lost';
+    news.push({ round: fixture.round, kind: 'result', text: `${verb} ${mine}–${theirs} ${managedSide === 0 ? 'at home to' : 'away at'} ${opponent}.` });
+  }
+
   const resultSummary: FixtureResult = {
     score: [...result.score] as [number, number],
     quarterScores: result.quarterScores.map((q) => [...q] as [number, number]),
@@ -277,22 +356,82 @@ export function recordResult(state: CareerState, fixtureId: string, result: Matc
     ...state,
     updatedAt: now,
     playerStats,
+    squad,
+    morale,
+    news: news.slice(-NEWS_KEPT),
     fixtures: state.fixtures.map((f) => (f.id === fixtureId ? { ...f, result: resultSummary } : f)),
   };
 }
 
-/** Simulate one match of the career (league matches can end in a draw: no shootout). */
+/** The 13 a club names for a match (the manager's choice for their own club, else the assistant's). */
+export function matchdaySquad(state: CareerState, clubId: string): string[] {
+  const team = teamFor(state, clubId);
+  return pickMatchday(team, state.squad, clubId === state.managedClubId ? state.selection?.matchday : undefined);
+}
+
+/**
+ * Everything the match engine needs for a career match: the matchday squads,
+ * starting energy from fitness, the manager's starting seven, and morale.
+ * League matches can end in a draw (no shootout).
+ */
+export function matchSetup(input: CareerState, fixture: Fixture): { home: Team; away: Team; options: MatchOptions } {
+  const state = migrateCareer(input);
+  const side = (clubId: string) => {
+    const team = teamFor(state, clubId);
+    const matchday = matchdaySquad(state, clubId);
+    const squadTeam = { ...team, players: team.players.filter((p) => matchday.includes(p.id)) };
+    const starters = clubId === state.managedClubId ? validStarters(team, matchday, state.selection?.starters) : undefined;
+    return { team: squadTeam, starters };
+  };
+  const home = side(fixture.homeId);
+  const away = side(fixture.awayId);
+  const energy: Record<string, number> = {};
+  for (const p of [...home.team.players, ...away.team.players]) energy[p.id] = state.squad[p.id]?.condition ?? 100;
+  return {
+    home: home.team,
+    away: away.team,
+    options: {
+      seed: fixtureSeed(state, fixture),
+      shootoutOnDraw: false,
+      initialEnergy: energy,
+      lineups: [home.starters, away.starters],
+      formBonus: [moraleBonus(state.morale[fixture.homeId] ?? DEFAULT_MORALE), moraleBonus(state.morale[fixture.awayId] ?? DEFAULT_MORALE)],
+    },
+  };
+}
+
+/** Simulate one match of the career. */
 export function simulateFixture(state: CareerState, fixture: Fixture): MatchResult {
-  return simulateMatch(teamFor(state, fixture.homeId), teamFor(state, fixture.awayId), { seed: fixtureSeed(state, fixture), shootoutOnDraw: false });
+  const { home, away, options } = matchSetup(state, fixture);
+  return simulateMatch(home, away, options);
 }
 
 /** Simulate every unplayed match of a round (the manager's own match included, unless already recorded). */
-export function simulateRound(state: CareerState, round: number, now?: string): CareerState {
+export function simulateRound(input: CareerState, round: number, now?: string): CareerState {
+  const state = migrateCareer(input);
   let next = state;
-  for (const f of state.fixtures.filter((x) => x.round === round && !x.result)) {
-    next = recordResult(next, f.id, simulateFixture(next, f), 'simulated', now);
-  }
-  return next;
+  const open = state.fixtures.filter((x) => x.round === round && !x.result);
+  for (const f of open) next = recordResult(next, f.id, simulateFixture(next, f), 'simulated', now);
+  if (!open.length && state.fixtures.some((f) => f.round === round)) return next; // round already done
+  // The week until the next round: healing, recovery and training.
+  const week = trainingWeek({
+    round,
+    seed: state.seed,
+    teams: next.teams,
+    squad: next.squad,
+    progress: next.progress,
+    managedClubId: next.managedClubId,
+    training: next.training,
+  });
+  return { ...next, teams: week.teams, squad: week.squad, progress: week.progress, news: [...next.news, ...week.news].slice(-NEWS_KEPT) };
+}
+
+export function setTraining(state: CareerState, training: Training): CareerState {
+  return { ...state, training: { ...training } };
+}
+
+export function setSelection(state: CareerState, selection: Selection | undefined): CareerState {
+  return { ...state, selection: selection && { matchday: [...selection.matchday], starters: [...selection.starters] } };
 }
 
 export function setTactics(state: CareerState, tactics: Tactics): CareerState {

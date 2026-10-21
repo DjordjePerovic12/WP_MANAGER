@@ -77,6 +77,8 @@ export function describeEvent(e: MatchEvent, result: MatchResult, players = play
       return `Timeout ${team.name}.`;
     case 'brutality':
       return `BRUTALITY! ${name(e.other)} (${opp.short}) is sent off for the rest of the match after striking ${name(e.player)}. Penalty to ${team.short}, and ${opp.short} play a man down for 4 minutes.`;
+    case 'injury':
+      return `${name(e.player)} (${team.short}) is injured and has to leave the match.`;
     case 'sub':
       return null; // rolling substitutions are too frequent to narrate
     case 'tactics': {

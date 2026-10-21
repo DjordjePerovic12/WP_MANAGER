@@ -128,6 +128,7 @@ function* withWater(m: MatchResult, team: 0 | 1) {
     // Fouled-out and sent-off players stay in the pool list until replaced, but cannot play.
     if (e.type === 'fouled_out' && e.team === team) water.delete(e.player!);
     if (e.type === 'brutality' && e.team !== team) water.delete(e.other!);
+    if (e.type === 'injury' && e.team === team) water.delete(e.player!);
     yield { e, water };
   }
 }

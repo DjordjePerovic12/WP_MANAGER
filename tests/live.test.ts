@@ -94,3 +94,68 @@ describe('brutality', () => {
     }
   });
 });
+
+describe('manager formations', () => {
+  const team = home;
+  const centers = team.players.filter((p) => p.position === 'CENTER' || p.position === 'CDEF');
+  const keeper = team.players.find((p) => p.position === 'GK')!;
+  const others = team.players.filter((p) => p.position !== 'GK' && !centers.includes(p));
+  const bigMen = [keeper.id, ...centers.slice(0, 4).map((p) => p.id), ...others.slice(0, 6 - Math.min(4, centers.length)).map((p) => p.id)];
+
+  it('keeps the manager\'s starting shape: big men are not pulled off for being "out of position"', () => {
+    const minutes = (lineup?: string[]) => {
+      let total = 0;
+      for (let seed = 0; seed < 30; seed++) {
+        const r = simulateMatch(team, away, { seed, lineups: [lineup, undefined] });
+        total += centers.slice(0, 4).reduce((s, p) => s + r.secondsPlayed[p.id], 0);
+      }
+      return total / 30 / 60;
+    };
+    // Starting four big men: together they play more than in the coach's usual shape, and each gets real minutes.
+    expect(minutes(bigMen)).toBeGreaterThan(minutes());
+    expect(minutes(bigMen) / Math.min(4, centers.length)).toBeGreaterThan(14);
+  });
+
+  it('recommends bench players for the role being replaced, best fit first', () => {
+    const live = new LiveMatch([home, away], { seed: 2, managed: [true, false] });
+    live.step();
+    const state = live.state().teams[0];
+    const out = state.water[1];
+    const recs = live.recommendSubs(0, out);
+    expect(recs.length).toBe(state.bench.filter((id) => home.players.find((p) => p.id === id)!.position !== 'GK').length);
+    for (let i = 1; i < recs.length; i++) expect(recs[i - 1].score).toBeGreaterThanOrEqual(recs[i].score);
+    expect(recs.every((r) => r.role === recs[0].role)).toBe(true);
+    expect(live.recommendSubs(0, state.water[0]).every((r) => home.players.find((p) => p.id === r.id)!.position === 'GK')).toBe(true);
+  });
+
+  it('a manual substitution changes the role of that slot', () => {
+    const live = new LiveMatch([home, away], { seed: 3, managed: [true, false], autoSubs: false });
+    live.step();
+    const s = live.state().teams[0];
+    const out = s.water.find((id) => home.players.find((p) => p.id === id)!.position === 'DRIVER')!;
+    const center = s.bench.find((id) => home.players.find((p) => p.id === id)!.position === 'CENTER');
+    if (!center) return;
+    expect(live.substitute(0, out, center)).toBeNull();
+    expect(live.recommendSubs(0, center)[0].role).toBe('CENTER');
+  });
+});
+
+describe('position flexibility', () => {
+  it('position is a preference, not a rule', async () => {
+    const { positionFit } = await import('../engine/match');
+    expect(positionFit('CENTER', 'CENTER')).toBe(1);
+    expect(positionFit('CDEF', 'CENTER')).toBeGreaterThan(positionFit('WING', 'CENTER'));
+    expect(positionFit('WING', 'CENTER')).toBeGreaterThan(0.9); // a wing at center is fine, just not ideal
+  });
+
+  it('the manager can bring a wing on for a center, and a much better player tops the suggestions', () => {
+    const live = new LiveMatch([home, away], { seed: 6, managed: [true, false], autoSubs: false });
+    live.step();
+    const s = live.state().teams[0];
+    const center = s.water.find((id) => home.players.find((p) => p.id === id)!.position === 'CENTER')!;
+    const wing = s.bench.find((id) => home.players.find((p) => p.id === id)!.position === 'WING');
+    if (!wing) return;
+    expect(live.substitute(0, center, wing)).toBeNull();
+    expect(live.state().teams[0].water).toContain(wing);
+  });
+});

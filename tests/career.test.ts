@@ -46,6 +46,21 @@ describe('schedule', () => {
     }
   });
 
+  it.each([8, 12, 13])('never has more than three home or away matches in a row (%i clubs)', (n) => {
+    const ids = Array.from({ length: n }, (_, i) => `c${i}`);
+    for (let seed = 1; seed < 10; seed++) {
+      const fixtures = makeSchedule(ids, seed);
+      for (const id of ids) {
+        const seq = fixtures.filter((f) => f.homeId === id || f.awayId === id).sort((a, b) => a.round - b.round).map((f) => f.homeId === id);
+        let run = 1;
+        for (let i = 1; i < seq.length; i++) {
+          run = seq[i] === seq[i - 1] ? run + 1 : 1;
+          expect(run).toBeLessThanOrEqual(3);
+        }
+      }
+    }
+  });
+
   it('spreads home games and skips the winter break', () => {
     const ids = Array.from({ length: 12 }, (_, i) => `c${i}`);
     const fixtures = makeSchedule(ids, 3);

@@ -98,13 +98,16 @@ export const TUNING = {
   // Rolling subs compare how well each player would play right now (rating × fatigue).
   subMargin: 0.06,            // a sub must be this much better than the player in the water
   subMinBenchEnergy: 75,      // a player has to be this rested to come back on
-  outOfPositionFactor: 0.9,
+  relatedPositionFactor: 0.97, // e.g. a driver on the wing, a center-defender at center
+  outOfPositionFactor: 0.92,   // e.g. a center on the wing: possible, just not his best role
   rotationBonus: 0.3,        // extra appeal of a bench player who has barely played (fades as they play)
   rotationTargetSeconds: 240, // …until they have had about 4 minutes
   maxSubsPerStoppage: 2,
   foulTroubleBench: 0.65,     // value of a player on 2 fouls while the team is level or ahead (Q1–Q3)
 
   maxPersonalFouls: 3,
+  injuryPerSecond: 0.0000032,  // per field player in the water: about one injury every 6–7 matches
+  injuryFatigueScale: 20,      // an exhausted player is 6× as likely to get hurt
   foulTroubleCaution: 0.15,   // a player on 2 fouls is this much less likely to commit another
   timeouts: 2,
   timeoutBoost: 0.05,         // goal chance on the set play after a timeout
