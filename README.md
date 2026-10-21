@@ -8,7 +8,13 @@ A Football Manager-style water polo game. Currently: a match engine, real Europe
 - `npm run dev`: web page at http://localhost:5173 (uses real clubs when the API is running, fictional ones otherwise)
 - `npm test`: all tests
 
-## Playing a match (web page)
+## Career mode (web page → Career)
+- Pick a league and a real club, then play the 2026-27 season: one league match a week, home and away against every club (win 3 points, draw 1).
+- Each round: play your match live (you manage), watch it, or take a quick result. All other matches are simulated. Follow the table, fixtures and results, your squad's season stats and the league's top scorers.
+- Leagues: the **Adriatic League** is all real clubs (Serbia, Montenegro, Croatia, Bosnia). The Italian, Greek, Spanish, German and Hungarian leagues are completed with generated clubs (fictional names and players, marked *), because the data only covers clubs from the European cups.
+- Careers are saved in the local database after every round (needs `npm run server`). Season rules live in `game/` (plain TypeScript, shared by the web page and the server).
+
+## Friendly match (web page → Friendly match)
 - Pick two clubs and their tactics, choose a speed (Normal, Fast, Highlights or Instant), and press Play.
 - **You manage**: pick Home or Away to coach that team live. Pause any time, call timeouts (taken when your team has the ball), change defense, 6 on 5 setup, counterattack and fronting, and make substitutions (tap the player coming off, then the one going on). Leave "Assistant handles rotation" on to keep automatic rolling subs.
 - The pool view shows every player as a cap with energy bar and foul dots; tap a cap for live stats and attributes. Goals, exclusions (with the 18-second countdown), penalties, brutality, timeouts and quarter changes get banners, and the ball follows the passes to the shot.

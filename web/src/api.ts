@@ -10,14 +10,16 @@ export interface League {
   source: 'real' | 'generated';
   teams: Team[];
   groups: TeamGroup[];
+  /** IOC country code per club id (real clubs only) */
+  countries: Record<string, string>;
 }
 
 interface ApiCompetition { id: string; name: string; tier: number }
-interface ApiClub { id: string; name: string; rating: number }
+interface ApiClub { id: string; name: string; rating: number; country: string }
 
 const GENERATED: League = (() => {
   const teams = generateLeague(2026);
-  return { source: 'generated', teams, groups: [{ label: 'Fictional clubs', teamIds: teams.map((t) => t.id) }] };
+  return { source: 'generated', teams, groups: [{ label: 'Fictional clubs', teamIds: teams.map((t) => t.id) }], countries: {} };
 })();
 
 async function getJson<T>(url: string): Promise<T> {
@@ -45,7 +47,7 @@ async function loadRealLeague(): Promise<League> {
       return { id: club.id, name: club.name, short: club.id.replace(/^EA-/, ''), players: club.squad, tactics: { ...DEFAULT_TACTICS } };
     }),
   );
-  return { source: 'real', teams, groups };
+  return { source: 'real', teams, groups, countries: Object.fromEntries(summaries.map((c) => [c.id, c.country])) };
 }
 
 /** Real clubs when the API is running, otherwise generated fictional clubs. */

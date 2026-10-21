@@ -66,7 +66,7 @@ export function PoolView({ result, eventIndex, stepMs }: { result: MatchResult; 
   const ballRef = useRef<SVGGElement>(null);
 
   // Ball: travel along the passing route, then the shot.
-  const travelMs = Math.max(250, stepMs * 0.75);
+  const travelMs = Number.isFinite(stepMs) ? Math.max(250, stepMs * 0.75) : 250;
   useLayoutEffect(() => {
     const el = ballRef.current;
     if (!el || !m) return;

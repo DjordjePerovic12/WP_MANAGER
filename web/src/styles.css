@@ -273,3 +273,56 @@ tr.fouled-out td { color: var(--away); }
 .squad-fouls { color: #ffb703; letter-spacing: 1px; font-size: 10px; }
 .squad-fouls.warn { color: var(--away); }
 .manager-message { margin: 10px 0 0; font-size: 13px; color: var(--accent); }
+
+/* ---- App navigation ---- */
+.app-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs button { border-radius: 999px; padding: 6px 14px; }
+.tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.sub-tabs { margin: 12px 0; }
+
+/* ---- Career ---- */
+.career-menu, .career { display: grid; gap: 12px; }
+.career-menu h2, .new-career h2, .career h2 { margin: 0 0 6px; }
+.save-row { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--border); padding: 8px 0; }
+.save-open { flex: 1; display: flex; align-items: center; gap: 10px; text-align: left; border: 0; background: none; padding: 4px; }
+.link-danger { border: 0; background: none; color: var(--away); }
+.league-grid, .club-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.league-card, .club-card { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 10px 12px; }
+.club-card { flex-direction: row; align-items: center; gap: 10px; }
+.club-card > span { display: flex; flex-direction: column; }
+.league-card.selected, .club-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.career-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+.career-club { display: flex; align-items: center; gap: 12px; }
+.career-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.badge { background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+.career-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
+.career-grid > .card:nth-child(3) { grid-column: 1 / -1; }
+@media (max-width: 800px) { .career-grid { grid-template-columns: minmax(0, 1fr); } }
+.career-grid h3, .career-grid h4 { margin: 0 0 10px; }
+.next-match { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; margin-bottom: 14px; }
+.team-badge { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 10px; border-radius: 10px; }
+.team-badge.mine { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.vs { text-align: center; }
+.form { display: inline-flex; gap: 2px; }
+.form span { width: 16px; height: 16px; border-radius: 3px; font-size: 10px; font-weight: 700; display: inline-grid; place-items: center; color: #fff; }
+.form-W { background: #2a9d5c; } .form-D { background: #8a96a3; } .form-L { background: #c0392b; }
+.league-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.league-table th, .league-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.league-table th:nth-child(2), .league-table td:nth-child(2), .league-table td.club-cell { text-align: left; }
+.league-table tr.mine td { background: color-mix(in srgb, var(--accent) 14%, transparent); font-weight: 600; }
+.club-cell { display: flex; align-items: center; gap: 6px; }
+.fixtures { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.fixtures h4 { margin: 0 0 6px; }
+.current-round { border-color: var(--accent); }
+.fixture-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; padding: 4px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+.fixture-row.mine { font-weight: 700; }
+.fixture-home { display: flex; justify-content: flex-end; align-items: center; gap: 6px; text-align: right; }
+.fixture-away { display: flex; align-items: center; gap: 6px; }
+.fixture-score { font-variant-numeric: tabular-nums; min-width: 54px; text-align: center; }
+.squad-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.squad-table th, .squad-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.squad-table th:nth-child(2), .squad-table td:nth-child(2), .squad-table th:nth-child(3), .squad-table td:nth-child(3) { text-align: left; }
+.card:has(> .squad-table) { overflow-x: auto; }
+.career-match-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.season-end { text-align: center; }

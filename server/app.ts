@@ -8,7 +8,10 @@ import { DEFAULT_TACTICS } from '../engine/generate';
 import type { Player, Position, Tactics, Team } from '../engine/types';
 import { schema, type Db } from './db';
 
-const { clubs, clubCompetitions, competitions, playerAttributes, playerMatchStats, players } = schema;
+const { clubs, clubCompetitions, competitions, playerAttributes, playerMatchStats, players, saves, users } = schema;
+
+/** Until accounts exist, every save belongs to this local user. */
+export const LOCAL_USER = { id: 'local', email: 'local@localhost', displayName: 'Local manager' };
 
 /** Load a club as an engine Team (squad with attributes). */
 export async function loadTeam(db: Db, clubId: string, tactics?: Partial<Tactics>): Promise<Team | undefined> {
@@ -95,6 +98,51 @@ export function createApp(db: Db) {
       .where(eq(playerMatchStats.playerId, id));
     const { playerId: _, ...attrs } = row.player_attributes;
     return c.json({ ...row.players, attrs, season });
+  });
+
+  // ---- Career saves (one local user for now; accounts come later) ----
+
+  const ensureUser = async () => {
+    await db.insert(users).values({ ...LOCAL_USER, createdAt: new Date().toISOString() }).onConflictDoNothing();
+    return LOCAL_USER.id;
+  };
+
+  app.get('/saves', async (c) => {
+    const userId = await ensureUser();
+    const rows = await db
+      .select({ id: saves.id, name: saves.name, clubId: saves.clubId, updatedAt: saves.updatedAt })
+      .from(saves)
+      .where(eq(saves.userId, userId))
+      .orderBy(sql`${saves.updatedAt} desc`);
+    return c.json(rows);
+  });
+
+  app.get('/saves/:id', async (c) => {
+    const userId = await ensureUser();
+    const [row] = await db.select().from(saves).where(and(eq(saves.id, c.req.param('id')), eq(saves.userId, userId)));
+    if (!row) return c.json({ error: 'Save not found' }, 404);
+    return c.json(row);
+  });
+
+  /** Create or update a save: { name, clubId, state } */
+  app.put('/saves/:id', async (c) => {
+    const userId = await ensureUser();
+    const body = await c.req.json<{ name?: string; clubId?: string; state?: unknown }>();
+    if (!body.name || !body.clubId || typeof body.state !== 'object' || body.state === null) return c.json({ error: 'name, clubId and state are required' }, 400);
+    const [club] = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.id, body.clubId));
+    if (!club) return c.json({ error: 'Unknown club' }, 400);
+    const id = c.req.param('id');
+    const [existing] = await db.select({ userId: saves.userId }).from(saves).where(eq(saves.id, id));
+    if (existing && existing.userId !== userId) return c.json({ error: 'Save not found' }, 404);
+    const row = { id, userId, name: body.name.slice(0, 100), clubId: body.clubId, state: body.state, updatedAt: new Date().toISOString() };
+    await db.insert(saves).values(row).onConflictDoUpdate({ target: saves.id, set: { name: row.name, clubId: row.clubId, state: row.state, updatedAt: row.updatedAt } });
+    return c.json({ id, updatedAt: row.updatedAt });
+  });
+
+  app.delete('/saves/:id', async (c) => {
+    const userId = await ensureUser();
+    await db.delete(saves).where(and(eq(saves.id, c.req.param('id')), eq(saves.userId, userId)));
+    return c.json({ ok: true });
   });
 
   /** Simulate a match between two clubs: { homeId, awayId, seed?, homeTactics?, awayTactics?, shootoutOnDraw? } */
