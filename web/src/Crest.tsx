@@ -14,11 +14,29 @@ export function initials(name: string) {
   return (words.length >= 2 ? words[0][0] + words[1][0] : (words[0] ?? name).slice(0, 2)).toUpperCase();
 }
 
+/** Clubs whose logo file doesn't exist, so it isn't requested again. */
+const MISSING = new Set<string>();
+
 /** Club logo from /logos/<club id>.png (real clubs), or a generated shield crest. */
 export function Crest({ team, size = 28 }: { team: { id: string; name: string }; size?: number }) {
-  const [failed, setFailed] = useState(!team.id.startsWith('EA-'));
+  // Remember failures per club id: the same component can show another club after a re-render.
+  const [failedId, setFailedId] = useState<string | null>(null);
+  const failed = !team.id.startsWith('EA-') || failedId === team.id || MISSING.has(team.id);
   if (!failed) {
-    return <img className="crest" src={`/logos/${team.id}.png`} alt="" width={size} height={size} onError={() => setFailed(true)} />;
+    return (
+      <img
+        key={team.id}
+        className="crest"
+        src={`/logos/${team.id}.png`}
+        alt=""
+        width={size}
+        height={size}
+        onError={() => {
+          MISSING.add(team.id);
+          setFailedId(team.id);
+        }}
+      />
+    );
   }
   const h = hash(team.name);
   const hue = h % 360;

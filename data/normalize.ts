@@ -33,6 +33,15 @@ export function parseShots(v: unknown): Shots {
 
 const num = (v: unknown) => Number(v) || 0;
 
+/** Letters only, no accents, upper case: "Đukić" → "DUKIC" */
+export const nameKey = (s: string) =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[Đđ]/g, 'D').toUpperCase().replace(/[^A-Z]/g, '');
+
+/** The source writes Đ as "DJ": "DJordjije" → "Đordjije", "Dj" at the start of a word → "Đ". */
+export function fixDj(name: string) {
+  return name.replace(/(^|[\s-])D[Jj](?=[a-zčćšžđ])/g, '$1Đ');
+}
+
 /** "SANAHUJA CARNE" → "Sanahuja Carne" */
 export function titleCase(s: string) {
   return s.toLowerCase().replace(/(^|[\s'-])(\p{L})/gu, (_, sep, ch) => sep + ch.toUpperCase());
@@ -159,8 +168,8 @@ export function normalizeEuropeanAquatics(raw: EaSeason): DataSet {
     const goalkeeper = p.PlaRoleEng === 'Goalkeeper' || officialGoalkeepers.has(id);
     players.set(id, {
       id,
-      firstName: p.PlaName.trim(),
-      lastName: titleCase(p.PlaSurname.trim()),
+      firstName: fixDj(p.PlaName.trim()),
+      lastName: fixDj(titleCase(p.PlaSurname.trim())),
       birthDate: plausibleBirthDate(isoDate(p.PlaBirth)),
       nationality: p.PlaNaz ?? undefined,
       clubId: clubId(p.PlaTeamCode),

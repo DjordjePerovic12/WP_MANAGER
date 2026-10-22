@@ -1,19 +1,29 @@
 import { Fragment, useState } from 'react';
+import { PlayerLink } from './PlayerProfile';
+import { RecommendationBadge, ReportCard } from './ReportCard';
 import { overall } from '../../../engine';
 import {
   contractDemand,
   expiringContracts,
   formatMoney,
   offerContract,
+  playerReport,
   playerValue,
   seasonLabel,
   seasonYear,
+  setWageBudget,
+  staffWages,
   wageBill,
+  wageBudgetRange,
   wageRoom,
   type CareerState,
 } from '../../../game';
 
-const MOOD = { keen: 'Keen to stay', open: 'Open to staying', reluctant: 'Not sure he wants to stay' };
+const MOOD = {
+  keen: 'Keen to stay',
+  open: 'Open to staying',
+  reluctant: 'Not sure he wants to stay',
+};
 
 /** Finances and contracts of the managed club. */
 export function ClubTab({ career, onChange }: { career: CareerState; onChange: (c: CareerState) => void }) {
@@ -25,7 +35,10 @@ export function ClubTab({ career, onChange }: { career: CareerState; onChange: (
   const income = f.ledger.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
   const wagesPaid = -f.ledger.filter((e) => e.amount < 0).reduce((s, e) => s + e.amount, 0);
   const [talking, setTalking] = useState<string | null>(null);
-  const [offer, setOffer] = useState<{ wage: number; years: number }>({ wage: 0, years: 2 });
+  const [offer, setOffer] = useState<{ wage: number; years: number }>({
+    wage: 0,
+    years: 2,
+  });
   const [messages, setMessages] = useState<Record<string, { text: string; ok: boolean }>>({});
 
   const players = [...club.players].sort(
@@ -69,11 +82,18 @@ export function ClubTab({ career, onChange }: { career: CareerState; onChange: (
             </div>
           </div>
           <div className="budget-bar" title={`${Math.round((bill / f.wageBudget) * 100)}% of the wage budget`}>
-            <span style={{ width: `${Math.min(100, (bill / f.wageBudget) * 100)}%`, background: bill > f.wageBudget ? '#c0392b' : bill > f.wageBudget * 0.95 ? '#ffb703' : '#2a9d5c' }} />
+            <span
+              style={{
+                width: `${Math.min(100, (bill / f.wageBudget) * 100)}%`,
+                background: bill > f.wageBudget ? '#c0392b' : bill > f.wageBudget * 0.95 ? '#ffb703' : '#2a9d5c',
+              }}
+            />
           </div>
+          <WageBudgetSlider career={career} onChange={onChange} />
           <p className="muted small">
-            Room for wages: <b>{formatMoney(f.wageBudget - bill)}</b> per season. This season so far: {formatMoney(income)} in, {formatMoney(wagesPaid)} wages out. Prize money is
-            paid when the season ends: higher finishes earn more, and the board raises or cuts next season's budget depending on how you did.
+            Room for new wages: <b className={wageRoom(career) < 0 ? 'down' : ''}>{formatMoney(wageRoom(career))}</b> per season (players {formatMoney(bill)} + staff{' '}
+            {formatMoney(staffWages(career.staff ?? {}))}). This season so far: {formatMoney(income)} in, {formatMoney(wagesPaid)} wages out. Prize money is paid when the season
+            ends: higher finishes earn more, and the board raises or cuts next season's budget depending on how you did.
           </p>
           {f.lastSeason && (
             <p className="small">
@@ -88,10 +108,13 @@ export function ClubTab({ career, onChange }: { career: CareerState; onChange: (
             <p className="muted">No contracts end this season.</p>
           ) : (
             <p>
-              <b>{expiring.size}</b> contract{expiring.size > 1 ? 's end' : ' ends'} after {career.season}. Players you don't renew leave in the summer as free agents.
+              <b>{expiring.size}</b> contract
+              {expiring.size > 1 ? 's end' : ' ends'} after {career.season}. Players you don't renew leave in the summer as free agents.
             </p>
           )}
-          <p className="muted small">Players ask for a wage and length. Meet it and they sign; offer less and they may refuse, and a lowball offer can end the talks. Three offers per player per season.</p>
+          <p className="muted small">
+            Players ask for a wage and length. Meet it and they sign; offer less and they may refuse, and a lowball offer can end the talks. Three offers per player per season.
+          </p>
         </div>
       </div>
 
@@ -109,6 +132,7 @@ export function ClubTab({ career, onChange }: { career: CareerState; onChange: (
                 <th>Value</th>
                 <th>Wage</th>
                 <th>Until</th>
+                <th>Advice</th>
                 <th></th>
               </tr>
             </thead>
@@ -124,27 +148,33 @@ export function ClubTab({ career, onChange }: { career: CareerState; onChange: (
                   <Fragment key={p.id}>
                     <tr className={ending ? 'ending' : ''}>
                       <td>{p.cap}</td>
-                      <td>{p.name}</td>
+                      <td>
+                        <PlayerLink id={p.id}>{p.name}</PlayerLink>
+                      </td>
                       <td>{p.position}</td>
                       <td>{p.age}</td>
                       <td>{overall(p).toFixed(1)}</td>
                       <td>{formatMoney(playerValue(p, career.potential[p.id]))}</td>
                       <td>{contract ? formatMoney(contract.wage) : '–'}</td>
-                      <td>{contract ? (ending ? <b className="down">ends {seasonLabel(contract.until)}</b> : seasonLabel(contract.until)) : '–'}</td>
+                      <td>{contract ? ending ? <b className="down">ends {seasonLabel(contract.until)}</b> : seasonLabel(contract.until) : '–'}</td>
+                      <td>{(() => {
+                        const r = playerReport(career, p.id);
+                        return r && <RecommendationBadge report={r} />;
+                      })()}</td>
                       <td>
-                        {(ending || (contract && contract.until <= year + 1)) && !signed && !talks?.closed && (
-                          <button onClick={() => openTalks(p.id)}>{talking === p.id ? 'Close' : 'Renew'}</button>
-                        )}
+                        {(ending || (contract && contract.until <= year + 1)) && !signed && !talks?.closed && <button onClick={() => openTalks(p.id)}>{talking === p.id ? 'Close' : 'Renew'}</button>}
                         {talks?.closed && !signed && <span className="muted small">Talks over</span>}
                       </td>
                     </tr>
                     {(demand || msg) && (
                       <tr className="talks-row">
-                        <td colSpan={9}>
+                        <td colSpan={10}>
+                          {demand && <ReportCard career={career} playerId={p.id} />}
                           {demand && (
                             <div className="talks">
                               <span>
-                                <b>{p.name}</b> wants <b>{formatMoney(demand.wage)}</b> a season for <b>{demand.years}</b> season{demand.years > 1 ? 's' : ''} · <span className={demand.mood === 'reluctant' ? 'down' : 'muted'}>{MOOD[demand.mood]}</span>
+                                <b>{p.name}</b> wants <b>{formatMoney(demand.wage)}</b> a season for <b>{demand.years}</b> season
+                                {demand.years > 1 ? 's' : ''} · <span className={demand.mood === 'reluctant' ? 'down' : 'muted'}>{MOOD[demand.mood]}</span>
                               </span>
                               <label>
                                 Wage{' '}
@@ -154,13 +184,26 @@ export function ClubTab({ career, onChange }: { career: CareerState; onChange: (
                                   max={Math.round(demand.wage * 1.3)}
                                   step={1000}
                                   value={offer.wage}
-                                  onChange={(e) => setOffer({ ...offer, wage: Number(e.target.value) })}
+                                  onChange={(e) =>
+                                    setOffer({
+                                      ...offer,
+                                      wage: Number(e.target.value),
+                                    })
+                                  }
                                 />{' '}
                                 <b>{formatMoney(offer.wage)}</b> <span className="muted small">({Math.round((offer.wage / demand.wage) * 100)}% of his ask)</span>
                               </label>
                               <label>
                                 Seasons{' '}
-                                <select value={offer.years} onChange={(e) => setOffer({ ...offer, years: Number(e.target.value) })}>
+                                <select
+                                  value={offer.years}
+                                  onChange={(e) =>
+                                    setOffer({
+                                      ...offer,
+                                      years: Number(e.target.value),
+                                    })
+                                  }
+                                >
                                   {[1, 2, 3, 4, 5].map((y) => (
                                     <option key={y}>{y}</option>
                                   ))}
@@ -184,5 +227,24 @@ export function ClubTab({ career, onChange }: { career: CareerState; onChange: (
         </div>
       </div>
     </div>
+  );
+}
+
+/** Move transfer funds into the wage budget, like the budget slider in Football Manager. */
+function WageBudgetSlider({ career, onChange }: { career: CareerState; onChange: (c: CareerState) => void }) {
+  const f = career.finances[career.managedClubId];
+  const { min, max } = wageBudgetRange(f);
+  if (max <= min) return null;
+  const extra = f.wageBudget - min;
+  return (
+    <label className="wage-slider">
+      <span className="small">
+        Wage budget: <b>{formatMoney(f.wageBudget)}</b> {extra > 0 ? <span className="up">(+{formatMoney(extra)} from transfer funds)</span> : <span className="muted">(the board's figure)</span>}
+      </span>
+      <input type="range" min={min} max={max} step={1000} value={f.wageBudget} onChange={(e) => onChange(setWageBudget(career, Number(e.target.value)))} />
+      <span className="muted small">
+        Raise it by up to half your balance ({formatMoney(max - min)}). The extra wages are paid from the balance during the season. The board resets the budget every summer.
+      </span>
+    </label>
   );
 }

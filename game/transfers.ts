@@ -8,6 +8,7 @@ import { nextRound, seasonYear, type CareerState } from './career';
 import { MAX_REGISTERED, MAX_SQUAD } from './development';
 import { expectedWage, playerValue, respondToOffer, wageBill, type Contract, type FreeAgent, type RenewalDemand } from './finance';
 import { personalityOf } from './training';
+import { staffWages } from './staff';
 import type { NewsItem } from './squad';
 
 export type TransferWindow = 'summer' | 'winter';
@@ -63,12 +64,12 @@ function hashRng(seed: number, key: string) {
   return createRng(h);
 }
 
-/** The open transfer window, if any: pre-season (before round 1) or the January rounds. */
+/** The open transfer window, if any: pre-season (before the first matchday) or January. */
 export function transferWindow(state: CareerState): TransferWindow | null {
   const round = nextRound(state);
   if (round === undefined) return null;
   if (!state.fixtures.some((f) => f.result)) return 'summer';
-  const date = state.fixtures.find((f) => f.round === round)?.date ?? '';
+  const date = state.fixtures.find((f) => f.matchday === round)?.date ?? '';
   return date.slice(5, 7) === '01' ? 'winter' : null;
 }
 
@@ -215,8 +216,13 @@ export function signPlayer(state: CareerState, playerId: string, wage: number, y
   if (fromTeam && fee === undefined) return { signed: false, message: 'Agree a fee with his club first.', state };
   const f = state.finances[state.managedClubId];
   if ((fee ?? 0) > f.balance) return { signed: false, message: 'Not enough money for the fee.', state };
-  const room = f.wageBudget - wageBill(mine, state.contracts);
-  if (wage > room) return { signed: false, message: `The board will not approve the wage: only ${formatFee(room)} left in the wage budget.`, state };
+  const room = f.wageBudget - wageBill(mine, state.contracts) - staffWages(state.staff ?? {});
+  if (wage > room)
+    return {
+      signed: false,
+      message: `Not enough room in the wage budget: ${formatFee(Math.max(0, room))} left, he wants ${formatFee(wage)}. Raise the wage budget with your transfer funds in the Club tab, or free wages by selling.`,
+      state,
+    };
   const terms = playerTerms(state, playerId);
   if (!terms.willing) return { signed: false, message: terms.reason!, state };
   const talksKey = `terms:${playerId}`;
@@ -393,7 +399,7 @@ export function aiTransferWindow(state: CareerState, rng: Rng): CareerState {
     // A purchase from a weaker club, about every other summer per club.
     if (!rng.chance(0.55)) continue;
     const buyer = s.teams.find((t) => t.id === team.id)!;
-    if (buyer.players.length >= MAX_REGISTERED - 2) continue;
+    if (buyer.players.length >= MAX_SQUAD) continue; // AI clubs respect the summer squad cap
     const targets = s.teams
       .filter((t) => t.id !== buyer.id && t.id !== s.managedClubId && teamRating(t.players) < level - 0.3 && t.players.length > 13)
       .flatMap((t) => t.players.filter((p) => p.position !== 'GK' && overall(p) >= level - 1 && p.age <= 31).map((p) => ({ p, t })));

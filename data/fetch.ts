@@ -5,6 +5,9 @@ import { writeCache } from './http';
 import { fetchEuropeanAquatics } from './sources/europeanaquatics';
 import { fetchLogos } from './sources/logos';
 import { fetchWaterPoloAthletes } from './sources/worldaquatics';
+import { fetchMvlsz } from './sources/mvlsz';
+import { fetchAsaMalta } from './sources/asamalta';
+import { fetchHvs } from './sources/hvs';
 
 const maxIdx = process.argv.indexOf('--max-new');
 const maxNewMatches = maxIdx > 0 ? Number(process.argv[maxIdx + 1]) : undefined;
@@ -25,3 +28,8 @@ console.log(`World Aquatics: ${athletes} athletes from ${nations.length} nationa
 // Club logos for the web page.
 const menTeams = ea.teams.filter((t) => t.TeamCatCode === 'ASM').map((t) => t.TeamCode);
 console.log(`Logos: ${await fetchLogos(menTeams)}/${menTeams.length} clubs`);
+
+// Domestic leagues (cached; finished matches are never downloaded twice).
+await fetchHvs();
+await fetchMvlsz();
+await fetchAsaMalta();

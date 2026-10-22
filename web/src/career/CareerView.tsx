@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { teamRating } from '../../../engine';
-import { createCareer, LEAGUES, migrateCareer, type CareerState, type LeagueDef } from '../../../game';
+import { attachWorld, createCareer, LEAGUES, migrateCareer, type CareerState, type LeagueDef } from '../../../game';
 import type { League } from '../api';
 import { Crest } from '../Crest';
 import { CareerHub } from './CareerHub';
@@ -24,7 +24,7 @@ export async function saveCareer(state: CareerState) {
 
 /** Real clubs available for a league, strongest first. */
 function clubsFor(league: League, def: LeagueDef) {
-  return league.teams.filter((t) => def.countries.includes(league.countries[t.id])).sort((a, b) => teamRating(b.players) - teamRating(a.players));
+  return league.teams.filter((t) => (def.clubIds ? def.clubIds.includes(t.id) : def.countries.includes(league.countries[t.id]))).sort((a, b) => teamRating(b.players) - teamRating(a.players));
 }
 
 export function CareerView({ league }: { league: League }) {
@@ -47,7 +47,8 @@ export function CareerView({ league }: { league: League }) {
   const open = async (id: string) => {
     const res = await fetch(`/api/saves/${encodeURIComponent(id)}`);
     if (!res.ok) return setError('Could not load that career.');
-    setCareer(migrateCareer((await res.json()).state as CareerState));
+    // Older saves get the rest of Europe (for European competitions from their next season).
+    setCareer(migrateCareer(attachWorld((await res.json()).state as CareerState, league.teams, league.countries)));
   };
 
   const remove = async (id: string) => {
@@ -124,7 +125,8 @@ export function CareerView({ league }: { league: League }) {
 }
 
 function NewCareer({ league, onStart, onCancel }: { league: League; onStart: (s: CareerState) => void; onCancel: () => void }) {
-  const available = LEAGUES.filter((def) => clubsFor(league, def).length >= 2);
+  // The suspended Adriatic League stays only for older saves.
+  const available = LEAGUES.filter((def) => !def.legacy && clubsFor(league, def).length >= 2);
   const [leagueId, setLeagueId] = useState(available[0]?.id);
   const [clubId, setClubId] = useState<string | null>(null);
   const def = available.find((l) => l.id === leagueId);
@@ -133,7 +135,7 @@ function NewCareer({ league, onStart, onCancel }: { league: League; onStart: (s:
   const start = () => {
     if (!def || !clubId) return;
     const seed = Math.floor(Math.random() * 2 ** 31);
-    onStart(createCareer({ league: def, realTeams: clubs, managedClubId: clubId, seed, id: `career-${Date.now()}` }));
+    onStart(createCareer({ league: def, realTeams: clubs, managedClubId: clubId, seed, id: `career-${Date.now()}`, countries: league.countries, world: league.teams }));
   };
 
   return (
@@ -143,7 +145,7 @@ function NewCareer({ league, onStart, onCancel }: { league: League; onStart: (s:
       <div className="league-grid">
         {available.map((l) => {
           const real = clubsFor(league, l).length;
-          const total = Math.max(l.size, real);
+          const total = Math.max(real, Math.min(l.size, real + l.fillerNames.length));
           return (
             <button key={l.id} className={`league-card${l.id === leagueId ? ' selected' : ''}`} onClick={() => { setLeagueId(l.id); setClubId(null); }}>
               <b>{l.name}</b>
@@ -170,7 +172,7 @@ function NewCareer({ league, onStart, onCancel }: { league: League; onStart: (s:
           </div>
           {def.size > clubs.length && (
             <p className="muted small">
-              {def.size - clubs.length} more clubs with fictional names and players are added to complete the league, because our data only covers clubs from the European cups.
+              {Math.min(def.size - clubs.length, def.fillerNames.length)} more clubs are added to complete the league ({def.fillerNames.slice(0, def.size - clubs.length).map((f) => f[0]).join(', ')}): real clubs, but their players are generated until we have their rosters.
             </p>
           )}
         </>

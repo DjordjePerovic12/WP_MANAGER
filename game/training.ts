@@ -18,6 +18,7 @@ import {
   type PlayerCondition,
   type Training,
 } from './squad';
+import { assistantTrainingBoost, coachingFactor, fitnessRecoveryBonus, injuryRiskFactor, physioSpeedUp, type StaffMember, type StaffRole } from './staff';
 
 export type Personality = 'professional' | 'ambitious' | 'steady' | 'lazy' | 'temperamental';
 export type IndividualFocus = 'team' | 'shooting' | 'swimming' | 'defence' | 'powerplay' | 'goalkeeping' | 'rest';
@@ -131,7 +132,10 @@ export interface TrainingWeekResult {
  * his personality, fitness, morale and luck; better weeks bring faster progress.
  */
 export function trainingWeek(options: {
+  /** the matchday just played */
   round: number;
+  /** days until the next matchday (default a week): two matches in a week leave less time to recover and train */
+  days?: number;
   seed: number;
   teams: Team[];
   squad: Record<string, PlayerCondition>;
@@ -144,6 +148,8 @@ export function trainingWeek(options: {
   /** minutes played this season per player, for players asking for more playing time */
   minutes?: Record<string, number>;
   roundsPlayed?: number;
+  /** the managed club's staff (coaches, physio) */
+  staff?: Partial<Record<StaffRole, StaffMember>>;
 }): TrainingWeekResult {
   const { round, teams, managedClubId, training } = options;
   const individual = options.individual ?? {};
@@ -153,6 +159,11 @@ export function trainingWeek(options: {
   const ratings = { ...(options.ratings ?? {}) };
   const news: NewsItem[] = [];
   const entries: TrainingEntry[] = [];
+  // Share of a normal week: recovery, training and injury risk scale with it. Long breaks
+  // heal injuries fully (a week per 7 days) but do not add extra training.
+  const days = Math.max(1, options.days ?? 7);
+  const share = Math.min(1, days / 7);
+  const recover = (condition: number, ...args: [Parameters<typeof weeklyRecovery>[1], number?]) => Math.round(condition + (weeklyRecovery(condition, ...args) - condition) * share);
   const moraleEffect = (((options.morale ?? 60) - 60) / 40) * 0.6;
 
   const nextTeams = teams.map((team) => {
@@ -165,21 +176,25 @@ export function trainingWeek(options: {
       const now: PlayerCondition = { ...before };
 
       if (now.injury) {
-        const weeksLeft = now.injury.weeksLeft - 1;
+        // A week of healing per 7 days (a short gap heals a week with that share of a chance);
+        // a good physio sometimes gets a player back a week early.
+        const healed = Math.floor(days / 7) + (rng.chance((days % 7) / 7) ? 1 : 0);
+        const weeksLeft = now.injury.weeksLeft - healed - (managed && healed && rng.chance(physioSpeedUp(options.staff)) ? 1 : 0);
         now.injury = weeksLeft > 0 ? { ...now.injury, weeksLeft } : undefined;
         if (!now.injury && managed) news.push({ round, kind: 'recovered', text: `${p.name} is fit again after his ${before.injury!.name.toLowerCase()}.` });
-        now.condition = weeklyRecovery(now.condition, intensity);
+        now.condition = recover(now.condition, intensity);
         squad[p.id] = now;
         if (managed) entries.push({ playerId: p.id, tone: 'injured', note: now.injury ? `Rehab: ${now.injury.weeksLeft} week${now.injury.weeksLeft > 1 ? 's' : ''} to go.` : 'Back in full training next week.', focus: 'Rehab', gains: [] });
         return p;
       }
 
       const resting = managed && (own === 'rest' || training.focus === 'recovery');
-      const bonus = managed && (own === 'rest' || training.focus === 'recovery') ? RECOVERY_FOCUS_BONUS : 0;
+      const bonus = (managed && (own === 'rest' || training.focus === 'recovery') ? RECOVERY_FOCUS_BONUS : 0) + (managed ? fitnessRecoveryBonus(options.staff) : 0);
       const conditionBefore = now.condition;
-      now.condition = weeklyRecovery(now.condition, intensity, bonus);
+      now.condition = recover(now.condition, intensity, bonus);
       // Resting players and the light sessions of recovery weeks carry little injury risk.
-      if (rng.chance(resting ? intensity.injury * 0.2 : intensity.injury)) {
+      const risk = (resting ? intensity.injury * 0.2 : intensity.injury) * (managed ? injuryRiskFactor(options.staff) : 1) * share;
+      if (rng.chance(risk)) {
         now.injury = rollInjury(rng);
         if (managed) news.push({ round, kind: 'injury', text: `${p.name} picked up a ${now.injury.name.toLowerCase()} in training: out for ${now.injury.weeksLeft} week${now.injury.weeksLeft > 1 ? 's' : ''}.` });
       }
@@ -201,6 +216,7 @@ export function trainingWeek(options: {
         (training.intensity === 'hard' ? -0.2 : training.intensity === 'light' ? 0.2 : 0) +
         (conditionBefore < 55 ? -1.2 : conditionBefore < 70 ? -0.5 : 0) +
         moraleEffect +
+        assistantTrainingBoost(options.staff) +
         (rng.next() * 2 - 1) * PERSONALITY_SPREAD[personality];
       if (breakthrough) rating = 10;
       rating = Math.round(Math.max(1, Math.min(10, rating)) * 10) / 10;
@@ -210,13 +226,13 @@ export function trainingWeek(options: {
       const attrs = focusAttributes(p, training, own);
       const spread = own === 'team' && training.focus === 'balanced' && p.position !== 'GK';
       const quality = 0.4 + (rating / 10) * 1.2;
-      const perAttribute = (intensity.progress * ageFactor(p.age) * quality * (breakthrough ? 2.5 : 1) * (spread ? 2.2 : 1)) / Math.max(1, spread ? attrs.length : 1);
+      const perAttribute = (share * intensity.progress * ageFactor(p.age) * quality * (breakthrough ? 2.5 : 1) * (spread ? 2.2 : 1)) / Math.max(1, spread ? attrs.length : 1);
       const mine = { ...(progress[p.id] ?? {}) };
       const nextAttrs = { ...p.attrs };
       const gains: (keyof Attributes)[] = [];
       for (const key of attrs) {
         if (nextAttrs[key] >= 20) continue;
-        const value = (mine[key] ?? 0) + perAttribute * (0.7 + rng.next() * 0.6);
+        const value = (mine[key] ?? 0) + perAttribute * coachingFactor(options.staff, key) * (0.7 + rng.next() * 0.6);
         if (value >= 1) {
           nextAttrs[key] += 1;
           mine[key] = value - 1;
@@ -235,7 +251,7 @@ export function trainingWeek(options: {
       const played = options.minutes?.[p.id] ?? 0;
       const rounds = options.roundsPlayed ?? 0;
       if (personality === 'ambitious' && rounds >= 4 && played / rounds < 8 && overall(p) >= medianOverall && rng.chance(0.15)) {
-        news.push({ round, kind: 'injury', text: `${p.name} wants more playing time: he has played ${played} minutes in ${rounds} rounds.` });
+        news.push({ round, kind: 'injury', text: `${p.name} wants more playing time: he has played ${played} minutes in ${rounds} matches.` });
       }
       entries.push({ playerId: p.id, rating, tone, note, focus, gains, breakthrough });
       return { ...p, attrs: nextAttrs };

@@ -43,6 +43,36 @@ describe('season end', () => {
   });
 });
 
+describe('player stats detail', () => {
+  const done = finishSeason(start());
+  const club = done.teams.find((t) => t.id === done.managedClubId)!;
+
+  it('logs every match of the managed club, player by player', () => {
+    const ids = new Set(club.players.map((p) => p.id));
+    expect(Object.keys(done.matchLog).length).toBeGreaterThan(8);
+    for (const [id, log] of Object.entries(done.matchLog)) {
+      expect(ids.has(id)).toBe(true);
+      expect(log.reduce((s, m) => s + m.goals, 0)).toBe(done.playerStats[id].goals);
+      expect(log.reduce((s, m) => s + m.shots, 0)).toBe(done.playerStats[id].shots);
+    }
+  });
+
+  it('counts the goals each goalkeeper concedes', () => {
+    const goals = done.fixtures.reduce((s, f) => s + (f.result ? f.result.score[0] + f.result.score[1] : 0), 0);
+    const conceded = Object.values(done.playerStats).reduce((s, p) => s + (p.conceded ?? 0), 0);
+    expect(conceded).toBeGreaterThan(goals * 0.9);
+    expect(conceded).toBeLessThanOrEqual(goals);
+  });
+
+  it('keeps shots, exclusions drawn and fouls in the season history and clears the match log', () => {
+    const next = startNextSeason(done, NOW);
+    expect(next.matchLog).toEqual({});
+    const scorer = Object.entries(done.playerStats).find(([, s]) => s.goals > 3)![0];
+    const entry = next.playerHistory[scorer]?.at(-1) ?? done.playerHistory[scorer];
+    expect(entry).toMatchObject({ season: '2026-27', shots: done.playerStats[scorer].shots, fouls: done.playerStats[scorer].fouls });
+  });
+});
+
 describe('next season', () => {
   const done = finishSeason(start());
   const next = startNextSeason(done, NOW);
@@ -67,9 +97,12 @@ describe('next season', () => {
       expect(team.players.length).toBeGreaterThanOrEqual(MIN_SQUAD);
       expect(team.players.length).toBeLessThanOrEqual(MAX_SQUAD);
       expect(team.players.filter((p) => p.position === 'GK').length).toBeGreaterThanOrEqual(1);
-      expect(team.players.some((p) => p.id.includes('-Y2027-'))).toBe(true);
+      // AI clubs take their youngsters straight into the first team; the manager's go to the academy.
+      if (team.id !== next.managedClubId) expect(team.players.some((p) => p.id.includes('-Y2027-'))).toBe(true);
       expect(new Set(team.players.map((p) => p.cap)).size).toBe(team.players.length);
     }
+    expect(next.academy!.some((p) => p.id.includes('-A2027-'))).toBe(true);
+    expect(next.academy!.every((p) => p.age <= 19)).toBe(true);
     const before = new Map(done.teams.flatMap((t) => t.players.map((p) => [p.id, p.age])));
     for (const p of next.teams.flatMap((t) => t.players)) if (before.has(p.id)) expect(p.age).toBe(before.get(p.id)! + 1);
     for (const p of next.teams.flatMap((t) => t.players)) expect(next.potential[p.id]).toBeGreaterThan(0);

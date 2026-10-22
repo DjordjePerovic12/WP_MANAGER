@@ -11,7 +11,8 @@ import { DEFAULT_TACTICS } from '../engine/generate';
 import { POSITION_WEIGHTS } from '../engine/ratings';
 import type { DataSet, PlayerMatchLine, RealPlayer } from './model';
 
-const TIER_BASE: Record<number, number> = { 1: 13.5, 2: 11.5, 3: 10, 4: 9 };
+/** Base level per competition tier: European cups 1–4, domestic top leagues of strong countries 3, Malta 5–6. */
+const TIER_BASE: Record<number, number> = { 1: 13.5, 2: 11.5, 3: 10, 4: 9, 5: 8, 6: 7 };
 const STAT_SWING = 6;         // a player at the top percentile gets +3, the bottom −3
 const MIN_GAMES_FOR_STATS = 1;
 
@@ -52,9 +53,12 @@ export function ageOn(birthDate: string | undefined, onDate = '2026-10-01') {
 /** Club strength on the 1–20 scale from its best competition and its results this season. */
 export function clubStrengths(data: DataSet): Map<string, number> {
   const tierOf = new Map(data.competitions.map((c) => [c.id, c.tier]));
+  const bestTier = new Map(data.clubs.map((c) => [c.id, Math.min(...c.competitions.map((x) => tierOf.get(x) ?? 4))]));
   const diff = new Map<string, { gd: number; n: number }>();
   for (const m of data.matches) {
     for (const [club, sign] of [[m.homeId, 1], [m.awayId, -1]] as const) {
+      // Form counts only in the club's top competition: thrashing weaker domestic rivals says little.
+      if ((tierOf.get(m.competitionId) ?? 4) !== bestTier.get(club)) continue;
       const d = diff.get(club) ?? { gd: 0, n: 0 };
       d.gd += sign * (m.score[0] - m.score[1]);
       d.n++;
@@ -88,7 +92,16 @@ interface Aggregate {
   faced: number;
 }
 
+/**
+ * Each player's stats, from his highest level only: a Champions League player is judged on his
+ * European games, not on goals against weak domestic rivals; others on their own league.
+ */
 function aggregate(data: DataSet) {
+  const tierOf = new Map(data.competitions.map((c) => [c.id, c.tier]));
+  const matchTier = new Map(data.matches.map((m) => [m.id, tierOf.get(m.competitionId) ?? 4]));
+  const lineTier = (matchId: string) => matchTier.get(matchId) ?? 4;
+  const playerTier = new Map<string, number>();
+  for (const l of [...data.playerLines, ...data.goalkeeperLines]) playerTier.set(l.playerId, Math.min(playerTier.get(l.playerId) ?? 99, lineTier(l.matchId)));
   const agg = new Map<string, Aggregate>();
   const get = (id: string) => {
     let a = agg.get(id);
@@ -96,6 +109,7 @@ function aggregate(data: DataSet) {
     return a;
   };
   for (const l of data.playerLines as PlayerMatchLine[]) {
+    if (lineTier(l.matchId) !== playerTier.get(l.playerId)) continue;
     const a = get(l.playerId);
     a.games++;
     a.goals += l.shots.total[0];
@@ -111,6 +125,7 @@ function aggregate(data: DataSet) {
     a.centerExclusions += l.exclusionsCenter;
   }
   for (const g of data.goalkeeperLines) {
+    if (lineTier(g.matchId) !== playerTier.get(g.playerId)) continue;
     const a = get(g.playerId);
     a.saves += g.saves;
     a.faced += g.shotsFaced;
@@ -232,7 +247,7 @@ export function toEngineTeams(data: DataSet, rated = ratePlayers(data)): Team[] 
     }
     return {
       id: club.id,
-      name: titleClub(club.shortName),
+      name: clubDisplayName(club.id, club.name, club.shortName),
       short: club.id.replace(/^EA-/, ''),
       players: squad.sort((a, b) => a.cap - b.cap),
       tactics: { ...DEFAULT_TACTICS },
@@ -244,6 +259,15 @@ export function toEngineTeams(data: DataSet, rated = ratePlayers(data)): Team[] 
 export function isPlayable(team: Team) {
   const gk = team.players.filter((p) => p.position === 'GK').length;
   return gk >= 1 && team.players.length - gk >= 6;
+}
+
+/**
+ * The name to show: European Aquatics writes short names in capitals ("VK NOVI BEOGRAD" → "VK Novi Beograd");
+ * domestic sources write proper names, and some short names are only codes ("SGN"), so use the full name then.
+ */
+function clubDisplayName(id: string, name: string, shortName: string) {
+  if (id.startsWith('EA-')) return titleClub(shortName);
+  return shortName.length >= 5 ? shortName : name;
 }
 
 /** "VK NOVI BEOGRAD" → "VK Novi Beograd" (keeps short all-caps prefixes like VK, CN, AN, FTC) */

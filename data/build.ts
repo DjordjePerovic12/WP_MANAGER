@@ -4,10 +4,37 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DataSet, RealPlayer } from './model';
-import { normalizeEuropeanAquatics } from './normalize';
+import { nameKey, normalizeEuropeanAquatics } from './normalize';
 import { readCache } from './http';
 import { loadCachedEuropeanAquatics } from './sources/europeanaquatics';
 import type { WaAthlete } from './sources/worldaquatics';
+import { mergeDataSets } from './merge';
+import { loadMvlsz } from './sources/mvlsz';
+import { loadAsaMalta } from './sources/asamalta';
+import { loadHvs } from './sources/hvs';
+
+/**
+ * Domestic clubs that appear under a different name in the European Aquatics data
+ * (sponsors, full legal names): domestic id → European Aquatics id.
+ */
+export const CLUB_ALIASES: Record<string, string> = {
+  // Hungary (MVLSZ)
+  'MVL-152': 'EA-FTC', // FTC Telekom Waterpolo
+  'MVL-2': 'EA-HON', // Endo Plus Service-Honvéd
+  'MVL-321': 'EA-ZUG', // BVSC Manna ABC
+  'MVL-3': 'EA-VSC', // Vasas-Plaket
+  'MVL-61': 'EA-SZVE', // Szegedi Vízilabda Egylet
+  // Croatia (HVS)
+  'HVS-36': 'EA-JSP', // VK Jadran Split
+  'HVS-28': 'EA-MLA', // HAVK Mladost
+  'HVS-38': 'EA-JUG', // VK Jug Adriatic osiguranje
+  'HVS-30': 'EA-PRI', // VK Primorje EB
+  'HVS-76': 'EA-SOL', // VK Solaris
+  'HVS-55': 'EA-ZAD', // VK Zadar 1952
+};
+
+/** Club names the sources abbreviate too much. */
+const CLUB_NAMES: Record<string, string> = { 'HVS-59': 'KPK Korčula' };
 
 const OUT_DIR = join(import.meta.dirname, 'out');
 const OVERRIDES = join(import.meta.dirname, 'overrides.json');
@@ -22,9 +49,7 @@ export function applyOverrides(data: DataSet, overrides: Record<string, Partial<
   }
 }
 
-/** Letters only, no accents, upper case: "Đukić" → "DUKIC" */
-export const nameKey = (s: string) =>
-  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[Đđ]/g, 'D').toUpperCase().replace(/[^A-Z]/g, '');
+export { nameKey } from './normalize';
 
 /** Fill in heights from World Aquatics, matching on nationality, date of birth and surname. */
 export function enrichFromWorldAquatics(data: DataSet, athletesByNation: (nat: string) => WaAthlete[] | undefined) {
@@ -49,8 +74,12 @@ export function buildDataSet(): DataSet {
   if (!raw) throw new Error('No cached data yet. Run `npm run data:fetch` first.');
   const data = normalizeEuropeanAquatics(raw);
   enrichFromWorldAquatics(data, (nat) => readCache<WaAthlete[]>('worldaquatics', `athletes-${nat}`));
-  if (existsSync(OVERRIDES)) applyOverrides(data, JSON.parse(readFileSync(OVERRIDES, 'utf8')).players ?? {});
-  return data;
+  // Domestic leagues: more clubs, players and stats (only what has been fetched).
+  let merged = data;
+  for (const extra of [loadHvs(), loadMvlsz(), loadAsaMalta()]) if (extra) merged = mergeDataSets(merged, extra, { clubAliases: CLUB_ALIASES });
+  for (const c of merged.clubs) if (CLUB_NAMES[c.id]) c.name = c.shortName = CLUB_NAMES[c.id];
+  if (existsSync(OVERRIDES)) applyOverrides(merged, JSON.parse(readFileSync(OVERRIDES, 'utf8')).players ?? {});
+  return merged;
 }
 
 if (import.meta.filename === process.argv[1]) {

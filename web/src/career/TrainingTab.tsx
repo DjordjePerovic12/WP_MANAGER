@@ -17,7 +17,7 @@ import {
   type TrainingFocus,
   type TrainingIntensity,
 } from '../../../game';
-import { PlayerProfile } from './HistoryTab';
+import { PlayerLink } from './PlayerProfile';
 import { Fitness } from './SquadTab';
 
 const FOCUS_HELP: Record<TrainingFocus, string> = {
@@ -36,8 +36,17 @@ const INTENSITY_HELP: Record<TrainingIntensity, string> = {
 };
 
 const SHORT_LABELS: Record<keyof Player['attrs'], string> = {
-  speed: 'Speed', stamina: 'Stam.', shootingPower: 'Power', shootingAccuracy: 'Acc.', passing: 'Pass', legStrength: 'Legs',
-  wrestling: 'Wrest.', positioning: 'Def.', gameIQ: 'IQ', reflexes: 'Refl.', gkPositioning: 'GK pos',
+  speed: 'Speed',
+  stamina: 'Stam.',
+  shootingPower: 'Power',
+  shootingAccuracy: 'Acc.',
+  passing: 'Pass',
+  legStrength: 'Legs',
+  wrestling: 'Wrest.',
+  positioning: 'Def.',
+  gameIQ: 'IQ',
+  reflexes: 'Refl.',
+  gkPositioning: 'GK pos',
 };
 
 const FIELD_OPTIONS: IndividualFocus[] = ['team', 'shooting', 'swimming', 'defence', 'powerplay', 'rest'];
@@ -67,12 +76,9 @@ export function TrainingTab({ career, onChange }: { career: CareerState; onChang
   const report = career.trainingReport;
   const entries = new Map(report?.entries.map((e) => [e.playerId, e]) ?? []);
   const [sort, setSort] = useState<'position' | 'rating'>('position');
-  const [profile, setProfile] = useState<Player | null>(null);
 
   const players = [...club.players].sort((a, b) =>
-    sort === 'rating'
-      ? (entries.get(b.id)?.rating ?? -1) - (entries.get(a.id)?.rating ?? -1)
-      : Number(b.position === 'GK') - Number(a.position === 'GK') || a.cap - b.cap,
+    sort === 'rating' ? (entries.get(b.id)?.rating ?? -1) - (entries.get(a.id)?.rating ?? -1) : Number(b.position === 'GK') - Number(a.position === 'GK') || a.cap - b.cap,
   );
   const rated = report?.entries.filter((e) => e.rating !== undefined) ?? [];
   const best = rated.reduce<TrainingEntry | undefined>((a, e) => (!a || e.rating! > a.rating! ? e : a), undefined);
@@ -106,8 +112,8 @@ export function TrainingTab({ career, onChange }: { career: CareerState; onChang
           </div>
         </div>
         <div className="card">
-          <h3>{report ? `Training report · week ${report.round}` : 'Training report'}</h3>
-          {!report && <p className="muted">The first report comes after the first round.</p>}
+          <h3>{report ? `Training report · after matchday ${report.round}` : 'Training report'}</h3>
+          {!report && <p className="muted">The first report comes after the first matchday.</p>}
           {report && (
             <div className="report-highlights">
               {best && (
@@ -197,9 +203,7 @@ export function TrainingTab({ career, onChange }: { career: CareerState; onChang
                   <tr key={p.id} className={cond.injury ? 'injured' : ''}>
                     <td>{p.cap}</td>
                     <td>
-                      <button className="link" onClick={() => setProfile(p)}>
-                        {p.name}
-                      </button>
+                      <PlayerLink id={p.id}>{p.name}</PlayerLink>
                     </td>
                     <td>{p.position}</td>
                     <td>{p.age}</td>
@@ -250,7 +254,6 @@ export function TrainingTab({ career, onChange }: { career: CareerState; onChang
         </div>
       </div>
       <NewsFeed career={career} limit={14} />
-      {profile && <PlayerProfile career={career} player={club.players.find((x) => x.id === profile.id) ?? profile} onClose={() => setProfile(null)} />}
     </div>
   );
 }
@@ -261,12 +264,12 @@ export function NewsFeed({ career, limit = 8 }: { career: CareerState; limit?: n
   return (
     <div className="card news">
       <h3>News</h3>
-      {items.length === 0 && <p className="muted">Nothing yet: play the first round.</p>}
+      {items.length === 0 && <p className="muted">Nothing yet: play the first matchday.</p>}
       {items.map((n, i) => (
         <div key={i} className={`news-item news-${n.kind}`}>
           <span aria-hidden>{icon[n.kind]}</span>
           <span>
-            <span className="muted small">{n.round ? `R${n.round} ` : 'Summer '}</span>
+            <span className="muted small">{n.round ? `MD${n.round} ` : 'Summer '}</span>
             {n.text}
           </span>
         </div>

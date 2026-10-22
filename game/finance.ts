@@ -32,8 +32,10 @@ export interface ClubFinances {
   balance: number;
   /** the club's yearly income from sponsors, tickets and the like */
   revenue: number;
-  /** the most the board lets the club spend on wages per year */
+  /** the most the club may spend on wages per year (the board's figure, plus any extra the manager moved from transfer funds) */
   wageBudget: number;
+  /** the board's own wage budget for this season (wageBudget can be raised above it) */
+  boardWageBudget?: number;
   /** this season's money in and out (managed club) */
   ledger: LedgerEntry[];
   lastSeason?: SeasonFinance;
@@ -95,8 +97,8 @@ export function initialFinances(teams: Team[], contracts: Record<string, Contrac
 }
 
 /** Wages and income for one round (a share of the yearly figures). */
-export function roundFinances(f: ClubFinances, team: Team, contracts: Record<string, Contract>, round: number, rounds: number, managed: boolean): ClubFinances {
-  const wages = Math.round(wageBill(team, contracts) / rounds);
+export function roundFinances(f: ClubFinances, team: Team, contracts: Record<string, Contract>, round: number, rounds: number, managed: boolean, staffWages = 0): ClubFinances {
+  const wages = Math.round((wageBill(team, contracts) + staffWages) / rounds);
   const income = Math.round((f.revenue * 0.85) / rounds);
   const ledger = managed ? [...f.ledger, { round, label: 'Sponsors & tickets', amount: income }, { round, label: 'Wages', amount: -wages }] : f.ledger;
   return { ...f, balance: f.balance + income - wages, ledger };
@@ -170,3 +172,12 @@ export function formatMoney(amount: number): string {
 }
 
 export { newContract };
+
+/**
+ * How far the manager can raise the wage budget: by up to half of the money in the bank.
+ * The extra wages are paid out of the balance during the season, like every wage.
+ */
+export function wageBudgetRange(f: ClubFinances): { min: number; max: number } {
+  const board = f.boardWageBudget ?? f.wageBudget;
+  return { min: board, max: board + Math.max(0, round1000(f.balance * 0.5)) };
+}

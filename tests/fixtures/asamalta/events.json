@@ -1,0 +1,92 @@
+[
+ {
+  "id": 341222,
+  "date": "2026-07-22T20:30:00",
+  "status": "publish",
+  "title": {
+   "rendered": "Sliema Nexawin vs Neptunes Best Gyms Malta"
+  },
+  "content": {
+   "rendered": "<a href='http://asaofmalta.eu/wp-content/uploads/2026/07/SLIEMA-NEXAWIN_NEPTUNES-BGM_2026-07-22_21-52-57.pdf' class='small-button smallblue'>Match Card</a>\n",
+   "protected": false
+  },
+  "leagues": [
+   53
+  ],
+  "seasons": [
+   153
+  ],
+  "venues": [
+   36
+  ],
+  "teams": [
+   851,
+   813
+  ],
+  "main_results": [
+   "14",
+   "18"
+  ],
+  "day": "MD11 R2 G3"
+ },
+ {
+  "id": 341221,
+  "date": "2026-07-22T19:15:00",
+  "status": "publish",
+  "title": {
+   "rendered": "Valletta Peak Insurance Brokers vs San Giljan MAA Daikin"
+  },
+  "content": {
+   "rendered": "<a href='http://asaofmalta.eu/wp-content/uploads/2026/07/VLT-PEAK-INS-BROKERS_SAN-GILJAN-MAA-DAIKIN_2026-07-22_20-30-14.pdf' class='small-button smallblue'>Match Card</a>\n",
+   "protected": false
+  },
+  "leagues": [
+   53
+  ],
+  "seasons": [
+   153
+  ],
+  "venues": [
+   36
+  ],
+  "teams": [
+   853,
+   850
+  ],
+  "main_results": [
+   "10",
+   "29"
+  ],
+  "day": "MD11 R2 G3"
+ },
+ {
+  "id": 341436,
+  "date": "2026-08-02T18:30:29",
+  "status": "publish",
+  "title": {
+   "rendered": "San Giljan MAA Daikin vs Neptunes Best Gyms Malta"
+  },
+  "content": {
+   "rendered": "<a href='http://asaofmalta.eu/wp-content/uploads/2026/08/SAN-GILJAN-MAA-DAIKIN_NEPTUNES-BGM_2026-08-02_19-57-15.pdf' class='small-button smallblue'>Match Card</a>\n",
+   "protected": false
+  },
+  "leagues": [
+   98
+  ],
+  "seasons": [
+   153
+  ],
+  "venues": [
+   36
+  ],
+  "teams": [
+   850,
+   813
+  ],
+  "main_results": [
+   "13",
+   "10"
+  ],
+  "day": ""
+ }
+]

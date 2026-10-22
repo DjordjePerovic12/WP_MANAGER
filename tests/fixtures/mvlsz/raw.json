@@ -1,0 +1,57 @@
+{
+  "fetchedAt": "2026-10-22T08:00:00.000Z",
+  "competitions": [
+    { "id": 2203, "name": "E.ON Férfi OB I. Bajnokság", "shortName": "E.ON Férfi OB I.", "season": "2026-27" },
+    { "id": 878, "name": "E.ON Férfi OB I. Bajnokság", "shortName": "E.ON Férfi OB I.", "season": "2025-26" }
+  ],
+  "teams": {
+    "2203": [
+      { "id": 100, "clubId": 152, "teamId": 1224, "name": "FTC Telekom Waterpolo", "shortName": "FTC Telekom" },
+      { "id": 101, "clubId": 3, "teamId": 10792, "name": "Vasas-Plaket", "shortName": "Vasas-Plaket" }
+    ],
+    "878": [
+      { "id": 50, "clubId": 152, "teamId": 1224, "name": "FTC-Telekom Waterpolo", "shortName": "FTC" },
+      { "id": 51, "clubId": 280, "teamId": 900, "name": "KSI SE", "shortName": "KSI SE" }
+    ]
+  },
+  "games": {
+    "2203": [
+      {
+        "id": 9001, "status": "completed", "date": "2026-09-09", "round": "Alapszakasz, 1. forduló", "venue": "Komjádi, Budapest",
+        "homeTeamId": 101, "awayTeamId": 100, "homeScore": 3, "awayScore": 5, "periods": [[1, 1], [1, 2], [0, 1], [1, 1]],
+        "caps": [
+          { "playerId": 1, "teamId": 100, "cap": 1, "played": true },
+          { "playerId": 2, "teamId": 100, "cap": 7, "played": true },
+          { "playerId": 3, "teamId": 101, "cap": 2, "played": true },
+          { "playerId": 99, "teamId": 101, "cap": 5, "played": true }
+        ],
+        "stats": [
+          { "playerId": 1, "teamId": 1224, "played": true, "goals": 0, "shots": 0, "actionGoals": 0, "actionShots": 0, "centerGoals": 0, "centerShots": 0, "manUpGoals": 0, "manUpShots": 0, "freeThrowGoals": 0, "freeThrowShots": 0, "penaltyGoals": 0, "penaltyShots": 0, "fastBreakGoals": 0, "fastBreakShots": 0, "assists": 0, "steals": 1, "blocks": 0, "offensiveFouls": 0, "exclusionsCenter": 0, "exclusionsField": 0, "exclusionsWithPenalty": 0, "penaltiesCaused": 0, "fouledOut": false, "saves": 8, "savesMissed": 3 },
+          { "playerId": 2, "teamId": 1224, "played": true, "goals": 5, "shots": 9, "actionGoals": 2, "actionShots": 4, "centerGoals": 1, "centerShots": 1, "manUpGoals": 1, "manUpShots": 2, "freeThrowGoals": 0, "freeThrowShots": 1, "penaltyGoals": 1, "penaltyShots": 1, "fastBreakGoals": 0, "fastBreakShots": 0, "assists": 2, "steals": 0, "blocks": 1, "offensiveFouls": 1, "exclusionsCenter": 1, "exclusionsField": 1, "exclusionsWithPenalty": 1, "penaltiesCaused": 0, "fouledOut": false, "saves": 0, "savesMissed": 0 },
+          { "playerId": 3, "teamId": 10792, "played": true, "goals": 2, "shots": 6, "actionGoals": 2, "actionShots": 6, "centerGoals": 0, "centerShots": 0, "manUpGoals": 0, "manUpShots": 0, "freeThrowGoals": 0, "freeThrowShots": 0, "penaltyGoals": 0, "penaltyShots": 0, "fastBreakGoals": 0, "fastBreakShots": 0, "assists": 0, "steals": 0, "blocks": 0, "offensiveFouls": 2, "exclusionsCenter": 2, "exclusionsField": 0, "exclusionsWithPenalty": 1, "penaltiesCaused": 0, "fouledOut": false, "saves": 0, "savesMissed": 0 },
+          { "playerId": 99, "teamId": 10792, "played": true, "goals": 1, "shots": 2, "actionGoals": 1, "actionShots": 2, "centerGoals": 0, "centerShots": 0, "manUpGoals": 0, "manUpShots": 0, "freeThrowGoals": 0, "freeThrowShots": 0, "penaltyGoals": 0, "penaltyShots": 0, "fastBreakGoals": 0, "fastBreakShots": 0, "assists": 0, "steals": 0, "blocks": 0, "offensiveFouls": 0, "exclusionsCenter": 0, "exclusionsField": 0, "exclusionsWithPenalty": 0, "penaltiesCaused": 0, "fouledOut": false, "saves": 0, "savesMissed": 0 }
+        ]
+      },
+      {
+        "id": 9002, "status": "scheduled", "date": "2026-11-01", "round": "Alapszakasz, 9. forduló", "venue": "", "homeTeamId": 100, "awayTeamId": 101,
+        "homeScore": null, "awayScore": null, "periods": [], "caps": [], "stats": []
+      }
+    ],
+    "878": [
+      {
+        "id": 8001, "status": "completed", "date": "2025-09-06", "round": "Alapszakasz, 1. forduló", "venue": "Hajós fedett, Budapest",
+        "homeTeamId": 50, "awayTeamId": 51, "homeScore": 14, "awayScore": 6, "periods": [], "caps": [], "stats": []
+      }
+    ]
+  },
+  "rosters": {
+    "100": [
+      { "id": 1, "firstName": "TESZT", "lastName": "KAPUS", "birthDate": "1995-03-01", "hand": "right", "position": "kapus", "clubId": 152, "nationality": "HU" },
+      { "id": 2, "firstName": "Áron", "lastName": "PRÓBA", "birthDate": "2001-12-31", "hand": "left", "position": "rosszkéz szélső", "clubId": 152, "nationality": "RS" },
+      { "id": 4, "firstName": "Béla", "lastName": "MINTA", "birthDate": "1960-01-01", "clubId": 152, "nationality": "HU" }
+    ],
+    "101": [
+      { "id": 3, "firstName": "Csaba", "lastName": "PÉLDA-NAGY", "birthDate": "1999-06-15", "hand": "two_handed", "position": "bekk", "clubId": 3, "nationality": "GR" }
+    ]
+  }
+}

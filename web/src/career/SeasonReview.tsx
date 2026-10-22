@@ -1,4 +1,4 @@
-import { boardVerdict, expiringContracts, formatMoney, potentialStars, seasonAwards, seasonRecord, startNextSeason, seasonYear, seasonLabel, type CareerState } from '../../../game';
+import { boardVerdict, clubById, expiringContracts, formatMoney, potentialStars, seasonAwards, seasonRecord, startNextSeason, seasonYear, seasonLabel, type CareerState } from '../../../game';
 import { Crest } from '../Crest';
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
@@ -14,7 +14,7 @@ export const Stars = ({ value }: { value: number }) => (
 export function SeasonReview({ career, onChange }: { career: CareerState; onChange: (c: CareerState) => void }) {
   const record = seasonRecord(career);
   const verdict = boardVerdict(record.position, record.expectation);
-  const champion = career.teams.find((t) => t.id === record.championId)!;
+  const champion = clubById(career, record.championId)!;
   const awards = seasonAwards(career);
   const next = seasonLabel(seasonYear(career.season) + 1);
   return (
@@ -25,15 +25,20 @@ export function SeasonReview({ career, onChange }: { career: CareerState; onChan
         <div>
           <div className="muted small">{career.leagueName} champions</div>
           <b className="review-big">{champion.name}</b>
-          <div className="muted small">{record.table[0].points} points</div>
+          <div className="muted small">
+            {record.playoffs ? 'Playoff winners' : `${record.table[0].points} points`}
+            {record.cupWinnerName && ` · ${record.cupName}: ${record.cupWinnerName}`}
+          </div>
         </div>
       </div>
       <div className={`verdict verdict-${verdict.tone}`}>
-        <b>
-          You finished {ordinal(record.position)} with {record.points} points
-        </b>{' '}
-        ({record.won}W {record.drawn}D {record.lost}L, {record.goalsFor}:{record.goalsAgainst}). The board expected {ordinal(record.expectation)}: <b>{verdict.label}</b>.
+        <b>You finished {ordinal(record.position)}</b>
+        {record.leaguePosition && record.playoffs ? ` (${ordinal(record.leaguePosition)} in the regular season, playoffs: ${record.playoffs.toLowerCase()})` : ''} with {record.points} league points ({record.won}W{' '}
+        {record.drawn ? `${record.drawn}D ` : ''}
+        {record.lost}L, {record.goalsFor}:{record.goalsAgainst}). {record.national && record.nationalName ? `${record.nationalName}: ${record.national.toLowerCase()}. ` : ''}{record.europe ? `${record.europe.split(': ')[0]}: ${record.europe.split(': ')[1].toLowerCase()}. ` : ''}{record.cup && record.cupName ? `${record.cupName}: ${record.cup.toLowerCase()}. ` : ''}The board expected {ordinal(record.expectation)}:{' '}
+        <b>{verdict.label}</b>.
       </div>
+      {record.trophies && record.trophies.length > 0 && <div className="trophies">🏆 {record.trophies.join(' · ')}</div>}
       <h4>Awards</h4>
       <div className="awards">
         {awards.map((a) => (
@@ -52,7 +57,7 @@ export function SeasonReview({ career, onChange }: { career: CareerState; onChan
         </p>
       )}
       <p className="muted small">
-        Over the summer players get a year older: youngsters develop, veterans decline and some retire, and academy players join every club. Prize money is paid and the board sets next season's budget.
+        Over the summer players get a year older: youngsters develop, veterans decline and some retire, a new intake joins your academy, and 20-year-olds who weren't promoted leave it. Prize money is paid and the board sets next season's budget.
       </p>
       <button className="primary big" onClick={() => onChange(startNextSeason(career))}>
         Start the {next} season →
@@ -75,7 +80,7 @@ export function SummerReport({ career, onDismiss }: { career: CareerState; onDis
       <p className="muted small">Board expectation this season: finish {ordinal(career.expectation)}.</p>
       <div className="summer-grid">
         <div>
-          <h4>From the academy</h4>
+          <h4>New in your academy</h4>
           {r.academy.length === 0 && <p className="muted small">No academy players this year.</p>}
           {r.academy.map((a) => (
             <div key={a.playerId} className="summer-row">

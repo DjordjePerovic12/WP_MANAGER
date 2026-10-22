@@ -14,7 +14,7 @@ import {
   simulateRound,
   teamFor,
   topScorers,
-  totalRounds,
+  leagueRounds,
   type CareerState,
 } from '../game';
 
@@ -77,8 +77,8 @@ describe('career', () => {
     expect(c.teams).toHaveLength(12);
     expect(c.generated).toHaveLength(6);
     for (const t of real) expect(c.teams.some((x) => x.id === t.id)).toBe(true);
-    expect(c.fixtures).toHaveLength(12 * 11);
-    expect(totalRounds(c)).toBe(22);
+    expect(c.fixtures.filter((f) => f.competition === 'league')).toHaveLength(12 * 11);
+    expect(leagueRounds(c)).toBe(22);
   });
 
   it('rejects a club that is not in the league', () => {
@@ -92,7 +92,7 @@ describe('career', () => {
     const result = simulateMatch(teamFor(c, mine.homeId), teamFor(c, mine.awayId), { seed: 99, shootoutOnDraw: false });
     c = recordResult(c, mine.id, result, 'live', NOW);
     c = simulateRound(c, round, NOW);
-    const roundFixtures = c.fixtures.filter((f) => f.round === round);
+    const roundFixtures = c.fixtures.filter((f) => f.matchday === round);
     expect(roundFixtures.every((f) => f.result)).toBe(true);
     expect(c.fixtures.find((f) => f.id === mine.id)!.result!.played).toBe('live');
     expect(nextRound(c)).toBe(round + 1);
@@ -114,12 +114,13 @@ describe('career', () => {
 
     const table = leagueTable(a);
     expect(table).toHaveLength(12);
-    const totalPoints = table.reduce((s, r) => s + r.points, 0);
-    const draws = a.fixtures.filter((f) => f.result!.score[0] === f.result!.score[1]).length;
-    expect(totalPoints).toBe(3 * (a.fixtures.length - draws) + 2 * draws);
+    // No draws: every league game shares out 3 points (3–0, or 2–1 after penalties).
+    const league = a.fixtures.filter((f) => f.competition === 'league');
+    expect(table.reduce((s, r) => s + r.points, 0)).toBe(3 * league.length);
     for (const r of table) {
       expect(r.played).toBe(22);
-      expect(r.won + r.drawn + r.lost).toBe(22);
+      expect(r.drawn).toBe(0);
+      expect(r.won + r.shootoutWon + r.shootoutLost + r.lost).toBe(22);
     }
     for (let i = 1; i < table.length; i++) expect(table[i - 1].points).toBeGreaterThanOrEqual(table[i].points);
 

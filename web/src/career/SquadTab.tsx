@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { overall, type Player } from '../../../engine';
 import { matchdaySquad, MATCHDAY_MINIMUM, MATCHDAY_SIZE, potentialStars, setSelection, validStarters, type CareerState } from '../../../game';
-import { PlayerProfile } from './HistoryTab';
+import { PlayerLink } from './PlayerProfile';
 import { Stars } from './SeasonReview';
 
 /** "1 GK · 3 C · 2 CD · 4 D · 2 W · 1 P" */
@@ -40,7 +40,6 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
   const isGk = (id: string) => byId.get(id)!.position === 'GK';
 
   const [message, setMessage] = useState('');
-  const [profile, setProfile] = useState<Player | null>(null);
 
   const toggleMatchday = (id: string) => {
     setMessage('');
@@ -48,7 +47,10 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
       const matchday = effective.filter((x) => x !== id);
       if (isGk(id) && !matchday.some(isGk)) return setMessage('You need at least one goalkeeper in the squad.');
       if (matchday.length < MATCHDAY_MINIMUM) return setMessage(`You need at least ${MATCHDAY_MINIMUM} players.`);
-      return update(matchday, starters.filter((x) => x !== id));
+      return update(
+        matchday,
+        starters.filter((x) => x !== id),
+      );
     }
     if (effective.length >= MATCHDAY_SIZE) return setMessage(`Your ${MATCHDAY_SIZE} are full: untick someone first.`);
     update([...effective, id], starters);
@@ -76,7 +78,8 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
         <div>
           <h3>Squad</h3>
           <p className="muted small">
-            Tick up to {MATCHDAY_SIZE} for the next match, in any mix of positions (at least one goalkeeper), and star your starting seven. Until you pick, the assistant names the fittest best players.
+            Tick up to {MATCHDAY_SIZE} for the next match, in any mix of positions (at least one goalkeeper), and star your starting seven. Until you pick, the assistant names the fittest best
+            players.
           </p>
         </div>
         <div className="squad-summary">
@@ -84,9 +87,7 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
             Matchday <b>{effective.length}</b>/{MATCHDAY_SIZE}
           </span>
           <span className="badge muted">{positionMix(effective.map((id) => byId.get(id)!))}</span>
-          <span className={`badge${chosenStarters ? '' : ' muted'}`}>
-            Starting 7: {chosenStarters ? 'set' : `${keeperStarters} GK + ${fieldStarters}/6 · assistant picks`}
-          </span>
+          <span className={`badge${chosenStarters ? '' : ' muted'}`}>Starting 7: {chosenStarters ? 'set' : `${keeperStarters} GK + ${fieldStarters}/6 · assistant picks`}</span>
           {manual && (
             <button onClick={() => onChange(setSelection(career, undefined))} title="Let the assistant choose the squad and starters">
               Assistant picks
@@ -95,7 +96,6 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
         </div>
       </div>
       {message && <p className="manager-message">{message}</p>}
-      {profile && <PlayerProfile career={career} player={club.players.find((x) => x.id === profile.id) ?? profile} onClose={() => setProfile(null)} />}
       <div className="table-scroll">
         <table className="squad-table manage">
           <thead>
@@ -134,9 +134,7 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
                   </td>
                   <td>{p.cap}</td>
                   <td>
-                    <button className="link" onClick={() => setProfile(p)}>
-                      {p.name}
-                    </button>
+                    <PlayerLink id={p.id}>{p.name}</PlayerLink>
                   </td>
                   <td>{p.position}</td>
                   <td>{p.age}</td>
@@ -147,7 +145,17 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
                   <td>
                     <Fitness value={cond.condition} />
                   </td>
-                  <td>{cond.injury ? <span className="injury-tag">{cond.injury.name} · {cond.injury.weeksLeft}w</span> : cond.condition < 60 ? <span className="muted">Tired</span> : ''}</td>
+                  <td>
+                    {cond.injury ? (
+                      <span className="injury-tag">
+                        {cond.injury.name} · {cond.injury.weeksLeft}w
+                      </span>
+                    ) : cond.condition < 60 ? (
+                      <span className="muted">Tired</span>
+                    ) : (
+                      ''
+                    )}
+                  </td>
                   <td>{s?.apps ?? 0}</td>
                   <td>{s?.goals || ''}</td>
                   <td>{s?.assists || ''}</td>

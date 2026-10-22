@@ -434,7 +434,7 @@ export class LiveMatch {
     if (r < cut) {
       const at = this.rng.range(4, Math.min(duration, 25));
       if (at >= remaining) return this.buzzer(att, def, start, remaining);
-      const twoMeter = this.rng.chance(clamp(T.centerExclusionShare * (1 + battle), 0.2, 0.9));
+      const twoMeter = this.rng.chance(clamp(T.centerExclusionShare * (1 + battle), 0.15, 0.65));
       const drawnBy = twoMeter ? center : this.pickBy(this.field(att), (p) => this.eff(p, 'speed') + this.eff(p, 'gameIQ'));
       // At 2m the foul usually falls on the center-defender, but teams switch who guards the center.
       const committedBy =

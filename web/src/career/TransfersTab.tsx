@@ -16,11 +16,20 @@ import {
   signPlayer,
   transferWindow,
   wageBill,
+  wageRoom,
+  playerView,
+  scoutPlayer,
+  scoutingLeft,
+  ATTRIBUTE_LABELS,
+  PERSONALITY_LABELS,
+  type PlayerView,
   type CareerState,
   type MarketEntry,
 } from '../../../game';
 import { Crest } from '../Crest';
 import { Stars } from './SeasonReview';
+import { ReportCard } from './ReportCard';
+import { PlayerLink } from './PlayerProfile';
 
 type View = 'market' | 'selling' | 'history';
 const POSITIONS: (Position | 'ALL')[] = ['ALL', 'GK', 'CENTER', 'CDEF', 'DRIVER', 'WING', 'POINT'];
@@ -29,7 +38,7 @@ export function TransfersTab({ career, onChange }: { career: CareerState; onChan
   const window = transferWindow(career);
   const club = career.teams.find((t) => t.id === career.managedClubId)!;
   const f = career.finances[club.id];
-  const room = f.wageBudget - wageBill(club, career.contracts);
+  const room = wageRoom(career);
   const offers = currentOffers(career);
   const [view, setView] = useState<View>('market');
 
@@ -40,7 +49,7 @@ export function TransfersTab({ career, onChange }: { career: CareerState; onChan
           <b>{window === 'summer' ? 'Summer transfer window: open' : window === 'winter' ? 'January transfer window: open' : 'Transfer window: closed'}</b>
           <div className="muted small">
             {window === 'summer'
-              ? 'It closes when you play the first league round.'
+              ? 'It closes when you play the first matchday.'
               : window === 'winter'
                 ? 'It closes when the January rounds are over.'
                 : 'The next window opens in January (or in the summer). You can still release players.'}
@@ -63,7 +72,8 @@ export function TransfersTab({ career, onChange }: { career: CareerState; onChan
           Market
         </button>
         <button className={view === 'selling' ? 'active' : ''} onClick={() => setView('selling')}>
-          Your players{offers.length ? ` (${offers.length} offer${offers.length > 1 ? 's' : ''})` : ''}
+          Your players
+          {offers.length ? ` (${offers.length} offer${offers.length > 1 ? 's' : ''})` : ''}
         </button>
         <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>
           History
@@ -90,6 +100,9 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
   const [messages, setMessages] = useState<Record<string, { text: string; ok: boolean }>>({});
   const all = useMemo(() => marketPlayers(career), [career]);
   const bids = currentBids(career);
+  const views = useMemo(() => new Map(all.map((m) => [m.player.id, playerView(career, m.player)])), [all, career]);
+  const view = (id: string) => views.get(id)!;
+  const reportsLeft = scoutingLeft(career);
 
   const rows = all
     .filter((m) => position === 'ALL' || m.player.position === position)
@@ -98,7 +111,14 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
     .filter((m) => !freeOnly || m.clubId === null)
     .filter((m) => !search || m.player.name.toLowerCase().includes(search.toLowerCase()) || m.clubName.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) =>
-      sort === 'ovr' ? overall(b.player) - overall(a.player) : sort === 'pot' ? b.potential - a.potential : sort === 'price' ? a.askingPrice - b.askingPrice : a.player.age - b.player.age,
+      // Sorting uses what you can see (estimates for unscouted players), not the hidden truth.
+      sort === 'ovr'
+        ? view(b.player.id).overall.estimate - view(a.player.id).overall.estimate
+        : sort === 'pot'
+          ? view(b.player.id).potentialStars.high + view(b.player.id).potentialStars.low - view(a.player.id).potentialStars.high - view(a.player.id).potentialStars.low
+          : sort === 'price'
+            ? a.askingPrice - b.askingPrice
+            : a.player.age - b.player.age,
     )
     .slice(0, 80);
 
@@ -115,6 +135,9 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
 
   return (
     <div className="card">
+      <p className="muted small scout-note">
+        Players outside your club show estimated ranges until your scouts report on them. Reports left this week: <b>{reportsLeft}</b> (more with a better chief scout; the count resets each round).
+      </p>
       <div className="market-filters">
         <input placeholder="Search name or club" value={search} onChange={(e) => setSearch(e.target.value)} />
         <label>
@@ -187,29 +210,65 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
               return (
                 <Fragment key={id}>
                   <tr className={agreed ? 'agreed' : ''}>
-                    <td>{m.player.name}</td>
+                    <td>
+                      <PlayerLink id={id}>{m.player.name}</PlayerLink>
+                    </td>
                     <td className="club-cell">
                       {team && <Crest team={team} size={16} />} {m.clubName}
                     </td>
                     <td>{m.player.position}</td>
                     <td>{m.player.age}</td>
-                    <td>{overall(m.player).toFixed(1)}</td>
                     <td>
-                      <Stars value={potentialStars(m.potential)} />
+                      <OverallCell v={view(id)} />
+                    </td>
+                    <td>
+                      {view(id).potentialStars.low === view(id).potentialStars.high ? (
+                        <Stars value={view(id).potentialStars.low} />
+                      ) : (
+                        <span className="stars" title="Estimate: scout him to know">
+                          {'★'.repeat(view(id).potentialStars.low)}
+                          <span className="stars-range">{'★'.repeat(view(id).potentialStars.high - view(id).potentialStars.low)}</span>
+                        </span>
+                      )}
                     </td>
                     <td>{m.clubId ? formatMoney(m.askingPrice) : <span className="up">Free</span>}</td>
                     <td>{formatMoney(m.askingWage)}</td>
                     <td>{m.contract ? seasonLabel(m.contract.until) : '–'}</td>
                     <td>
-                      <button disabled={!open} onClick={() => openRow(m)}>
-                        {active === id ? 'Close' : agreed || !m.clubId ? 'Terms' : 'Bid'}
-                      </button>
+                      <span className="row-actions">
+                        {view(id).knowledge === 'exact' ? (
+                          <span className="scouted" title="Full scouting report">
+                            ✓
+                          </span>
+                        ) : (
+                          <button
+                            disabled={reportsLeft <= 0}
+                            title={reportsLeft > 0 ? 'Send your scouts' : 'No reports left this week'}
+                            onClick={() => {
+                              const out = scoutPlayer(career, id);
+                              say(id, out.message, out.state !== career);
+                              onChange(out.state);
+                              setActive(id);
+                              const t = playerTerms(out.state, id);
+                              setTerms({ wage: t.wage, years: t.years });
+                              setFee(currentBids(out.state)[id]?.counter ?? m.askingPrice);
+                            }}
+                          >
+                            Scout
+                          </button>
+                        )}
+                        <button disabled={!open} onClick={() => openRow(m)}>
+                          {active === id ? 'Close' : agreed || !m.clubId ? 'Terms' : 'Bid'}
+                        </button>
+                      </span>
                     </td>
                   </tr>
                   {active === id && (
                     <tr className="talks-row">
                       <td colSpan={10}>
-                        {m.clubId && !agreed && (
+                        <ReportCard career={career} playerId={id} />
+                        <Report v={view(id)} />
+                        {open && m.clubId && !agreed && (
                           <div className="talks">
                             <span>
                               {m.clubName} want <b>{formatMoney(m.askingPrice)}</b>
@@ -223,7 +282,14 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
                             </span>
                             <label>
                               Your bid{' '}
-                              <input type="range" min={Math.round(m.askingPrice * 0.3)} max={Math.round(m.askingPrice * 1.3)} step={1000} value={fee} onChange={(e) => setFee(Number(e.target.value))} />{' '}
+                              <input
+                                type="range"
+                                min={Math.round(m.askingPrice * 0.3)}
+                                max={Math.round(m.askingPrice * 1.3)}
+                                step={1000}
+                                value={fee}
+                                onChange={(e) => setFee(Number(e.target.value))}
+                              />{' '}
                               <b>{formatMoney(fee)}</b>
                             </label>
                             <button
@@ -239,25 +305,49 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
                             </button>
                           </div>
                         )}
-                        {(agreed || !m.clubId) && t && (
+                        {open && (agreed || !m.clubId) && t && (
                           <div className="talks">
                             {!t.willing ? (
                               <span className="warn-text">{t.reason}</span>
                             ) : (
                               <>
                                 <span>
-                                  {agreed && <>Fee agreed: <b>{formatMoney(bid!.agreedFee!)}</b> · </>}
+                                  {agreed && (
+                                    <>
+                                      Fee agreed: <b>{formatMoney(bid!.agreedFee!)}</b> ·{' '}
+                                    </>
+                                  )}
                                   <b>{m.player.name}</b> wants <b>{formatMoney(t.wage)}</b> a season for {t.years} season{t.years > 1 ? 's' : ''} ·{' '}
                                   <span className="muted">{t.mood === 'keen' ? 'Keen to join' : t.mood === 'open' ? 'Open to it' : 'Needs convincing'}</span>
                                 </span>
                                 <label>
                                   Wage{' '}
-                                  <input type="range" min={Math.round(t.wage * 0.6)} max={Math.round(t.wage * 1.3)} step={1000} value={terms.wage} onChange={(e) => setTerms({ ...terms, wage: Number(e.target.value) })} />{' '}
+                                  <input
+                                    type="range"
+                                    min={Math.round(t.wage * 0.6)}
+                                    max={Math.round(t.wage * 1.3)}
+                                    step={1000}
+                                    value={terms.wage}
+                                    onChange={(e) =>
+                                      setTerms({
+                                        ...terms,
+                                        wage: Number(e.target.value),
+                                      })
+                                    }
+                                  />{' '}
                                   <b>{formatMoney(terms.wage)}</b>
                                 </label>
                                 <label>
                                   Seasons{' '}
-                                  <select value={terms.years} onChange={(e) => setTerms({ ...terms, years: Number(e.target.value) })}>
+                                  <select
+                                    value={terms.years}
+                                    onChange={(e) =>
+                                      setTerms({
+                                        ...terms,
+                                        years: Number(e.target.value),
+                                      })
+                                    }
+                                  >
                                     {[1, 2, 3, 4, 5].map((y) => (
                                       <option key={y}>{y}</option>
                                     ))}
@@ -300,6 +390,37 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
   );
 }
 
+function OverallCell({ v }: { v: PlayerView }) {
+  if (v.overall.low === v.overall.high || v.knowledge === 'exact' || v.knowledge === 'own') return <>{v.overall.estimate.toFixed(1)}</>;
+  return (
+    <span className="range" title="Estimate: scout him to know">
+      {v.overall.low.toFixed(0)}–{v.overall.high.toFixed(0)}
+    </span>
+  );
+}
+
+/** The scouting report (or what is known without one). */
+function Report({ v }: { v: PlayerView }) {
+  const keys = Object.keys(v.attrs) as (keyof typeof v.attrs)[];
+  return (
+    <div className="report">
+      <div className="report-head">
+        <b>{v.knowledge === 'exact' ? 'Scouting report' : v.knowledge === 'close' ? 'Scouting report (within a point)' : 'What we know (not scouted)'}</b>
+        {v.personality && <span className={`personality personality-${v.personality}`}>{PERSONALITY_LABELS[v.personality]}</span>}
+      </div>
+      <div className="report-attrs">
+        {keys
+          .filter((k) => !(k === 'reflexes' || k === 'gkPositioning') || v.attrs.reflexes.high > 6)
+          .map((k) => (
+            <span key={k} className="report-attr">
+              <span className="muted">{ATTRIBUTE_LABELS[k]}</span> <b>{v.attrs[k].exact ? v.attrs[k].low : `${v.attrs[k].low}–${v.attrs[k].high}`}</b>
+            </span>
+          ))}
+      </div>
+    </div>
+  );
+}
+
 function Selling({ career, onChange }: { career: CareerState; onChange: (c: CareerState) => void }) {
   const club = career.teams.find((t) => t.id === career.managedClubId)!;
   const offers = currentOffers(career);
@@ -317,7 +438,10 @@ function Selling({ career, onChange }: { career: CareerState; onChange: (c: Care
             <div key={o.id} className="offer-row">
               <Crest team={buyer} size={22} />
               <span>
-                <b>{buyer.name}</b> offer <b>{formatMoney(o.fee)}</b> for <b>{name(o.playerId)}</b>
+                <b>{buyer.name}</b> offer <b>{formatMoney(o.fee)}</b> for{' '}
+                <PlayerLink id={o.playerId}>
+                  <b>{name(o.playerId)}</b>
+                </PlayerLink>
               </span>
               <button
                 className="primary"
@@ -354,7 +478,10 @@ function Selling({ career, onChange }: { career: CareerState; onChange: (c: Care
               <div key={p.id} className="offer-row">
                 <span className="squad-cap">{p.cap}</span>
                 <span>
-                  {p.name} <span className="muted small">{p.position} · {p.age} · {overall(p).toFixed(1)}</span>
+                  <PlayerLink id={p.id}>{p.name}</PlayerLink>{' '}
+                  <span className="muted small">
+                    {p.position} · {p.age} · {overall(p).toFixed(1)}
+                  </span>
                 </span>
                 <button disabled={!open && !listed} onClick={() => onChange(setTransferListed(career, p.id, !listed))}>
                   {listed ? 'Unlist' : 'List'}

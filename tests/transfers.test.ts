@@ -10,6 +10,7 @@ import {
   marketPlayers,
   MAX_SQUAD,
   nextRound,
+  matchdayDate,
   playerTerms,
   releaseCost,
   releasePlayer,
@@ -47,7 +48,7 @@ describe('windows', () => {
 
   it('opens again for the January rounds', () => {
     let c = start();
-    while (nextRound(c) && c.fixtures.find((f) => f.round === nextRound(c))!.date.slice(5, 7) !== '01') c = simulateRound(c, nextRound(c)!, NOW);
+    while (nextRound(c) && matchdayDate(c, nextRound(c)!)!.slice(5, 7) !== '01') c = simulateRound(c, nextRound(c)!, NOW);
     expect(transferWindow(c)).toBe('winter');
   });
 });

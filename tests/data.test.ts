@@ -181,3 +181,12 @@ describe('data quality', () => {
     expect(plausibleBirthDate(undefined)).toBeUndefined();
   });
 });
+
+describe('names', () => {
+  it('turns the source\'s "DJ" spelling into Đ', async () => {
+    const { fixDj } = await import('../data/normalize');
+    expect(fixDj('DJordjije')).toBe('Đordjije');
+    expect(fixDj('Djordje Petrovic')).toBe('Đordje Petrovic');
+    expect(fixDj('Dejan')).toBe('Dejan');
+  });
+});

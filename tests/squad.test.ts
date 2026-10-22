@@ -11,6 +11,8 @@ import {
   migrateCareer,
   moraleAfter,
   nextRound,
+  matchdayDate,
+  daysBetween,
   pickMatchday,
   recordResult,
   setSelection,
@@ -68,7 +70,7 @@ describe('fitness, injuries and morale', () => {
     expect(conditionAfterMatch(100, 28)).toBeLessThan(conditionAfterMatch(100, 10));
     let c = start();
     const round = nextRound(c)!;
-    const f = c.fixtures.find((x) => x.round === round)!;
+    const f = c.fixtures.find((x) => x.matchday === round)!;
     const after = recordResult(c, f.id, simulateFixture(c, f), 'simulated', NOW);
     const played = Object.entries(after.playerStats).filter(([, s]) => s.minutes > 15).map(([id]) => id);
     expect(played.length).toBeGreaterThan(5);
@@ -88,7 +90,9 @@ describe('fitness, injuries and morale', () => {
     const weeks = c.squad[injured!].injury!.weeksLeft;
     const club = c.teams.find((t) => t.players.some((p) => p.id === injured))!;
     if (nextRound(c)) expect(matchdaySquad(c, club.id)).not.toContain(injured);
-    for (let i = 0; i < weeks && nextRound(c); i++) c = simulateRound(c, nextRound(c)!, NOW);
+    // Injuries heal a week per 7 days: play on until that many days have passed.
+    const from = matchdayDate(c, nextRound(c)!)!;
+    while (nextRound(c) && daysBetween(from, matchdayDate(c, nextRound(c)!)!) < weeks * 7 + 1) c = simulateRound(c, nextRound(c)!, NOW);
     if (nextRound(c) || weeks <= 0) expect(c.squad[injured!].injury).toBeUndefined();
   });
 
@@ -155,10 +159,10 @@ describe('robustness', () => {
     const { squad, training, morale, progress, news, ...old } = start();
     const legacy = { ...old, version: 1 } as CareerState;
     const round = nextRound(legacy)!;
-    const mine = managedFixture(legacy, round) ?? legacy.fixtures.find((f) => f.round === round)!;
+    const mine = managedFixture(legacy, round) ?? legacy.fixtures.find((f) => f.matchday === round)!;
     const after = recordResult(legacy, mine.id, simulateFixture(legacy, mine), 'live', NOW);
     expect(after.version).toBe(CAREER_VERSION);
-    expect(simulateRound(after, round, NOW).fixtures.filter((f) => f.round === round).every((f) => f.result)).toBe(true);
+    expect(simulateRound(after, round, NOW).fixtures.filter((f) => f.matchday === round).every((f) => f.result)).toBe(true);
   });
 });
 
@@ -199,5 +203,25 @@ describe('flexible squads', () => {
     const matchday = [gk, ...field.slice(0, 12).map((p) => p.id)];
     const starters = [gk, ...field.slice(0, 6).map((p) => p.id)];
     expect(validStarters(t, matchday, starters)).toEqual(starters);
+  });
+});
+
+describe('squads too small to play', () => {
+  it('calls up academy players when a club is down to a few players', async () => {
+    const { ensureSquads } = await import('../game');
+    const c = start();
+    const mine = c.teams.find((t) => t.id === c.managedClubId)!;
+    const keepers = mine.players.filter((p) => p.position === 'GK').slice(0, 1);
+    const field = mine.players.filter((p) => p.position !== 'GK').slice(0, 4);
+    const tiny = { ...c, teams: c.teams.map((t) => (t.id === mine.id ? { ...t, players: [...keepers, ...field] } : t)) };
+    const fixed = ensureSquads(tiny);
+    const squad = fixed.teams.find((t) => t.id === mine.id)!;
+    expect(squad.players.length).toBe(13);
+    expect(squad.players.filter((p) => p.position === 'GK').length).toBeGreaterThanOrEqual(2);
+    for (const p of squad.players) expect(fixed.contracts[p.id]).toBeDefined();
+    expect(fixed.news.at(-1)!.text).toMatch(/called up 8 academy players/);
+    expect(ensureSquads(fixed)).toBe(fixed);
+    // The matchday can be played.
+    expect(() => simulateRound(fixed, nextRound(fixed)!, NOW)).not.toThrow();
   });
 });

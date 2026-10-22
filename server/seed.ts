@@ -25,7 +25,7 @@ await insertAll(
   schema.clubs,
   teams.map((t) => {
     const club = data.clubs.find((c) => c.id === t.id)!;
-    return { id: t.id, name: t.name, shortName: club.shortName, country: club.country, rating: Number(teamRating(t.players).toFixed(2)), playable: isPlayable(t) };
+    return { id: t.id, name: t.name, shortName: club.shortName, country: club.country, rating: t.players.length ? Number(teamRating(t.players).toFixed(2)) : 0, playable: isPlayable(t) };
   }),
 );
 await insertAll(schema.clubCompetitions, data.clubs.flatMap((c) => c.competitions.map((competitionId) => ({ clubId: c.id, competitionId }))));

@@ -22,7 +22,7 @@ export const TUNING = {
 
   // How much the 2m battle (center vs center-defender) changes exclusion odds
   centerBattleWeight: 0.7,
-  centerExclusionShare: 0.6,  // share of exclusions drawn at 2m
+  centerExclusionShare: 0.4,  // share of exclusions drawn at 2m (real top centers draw about 4–5 a game)
   twoMeterDefenderShare: 0.5, // share of 2m exclusions committed by the designated center-defender
 
   // Defensive systems: multipliers on [exclusion, turnover, shot goal %, shot clock]

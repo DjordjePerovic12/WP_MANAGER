@@ -6,3 +6,4 @@ export * from './generate';
 export * from './commentary';
 export * from './stats';
 export { TUNING } from './tuning';
+export * from './performance';
