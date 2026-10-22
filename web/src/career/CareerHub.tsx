@@ -15,6 +15,7 @@ import {
   totalMatchdays,
   competitionName,
   knockoutResult,
+  recentForm,
   atmosphere,
   europeanZones,
   EURO_NAMES,
@@ -341,7 +342,10 @@ function TeamBadge({ career, id, table, fixture }: { career: CareerState; id: st
           `${career.clubCountries?.[id] ?? 'Abroad'}`
         )}
       </span>
-      {row && <Form form={row.form} />}
+      {/* Form in every competition (the league table's column is league-only). */}
+      <span title="Last five games in all competitions, oldest to newest">
+        <Form form={recentForm(career, id)} />
+      </span>
     </div>
   );
 }
@@ -424,7 +428,7 @@ function LeagueTable({ career, table, compact = false, cutoff }: { career: Caree
           )}
           <th title="Goal difference">GD</th>
           <th title="Points">Pts</th>
-          {!compact && <th>Form</th>}
+          {!compact && <th title="Last five league games, oldest to newest">League form</th>}
         </tr>
       </thead>
       <tbody>

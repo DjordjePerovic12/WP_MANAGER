@@ -648,6 +648,26 @@ export function managedFixture(state: CareerState, matchday: number): Fixture | 
   return state.fixtures.find((f) => f.matchday === matchday && (f.homeId === state.managedClubId || f.awayId === state.managedClubId));
 }
 
+/**
+ * A club's last results in every competition (league, cups, playoffs, Europe), oldest first:
+ * W, L, or D for older draws. Games decided on penalties count as won or lost.
+ */
+export function recentForm(state: CareerState, clubId: string, games = 5): ('W' | 'D' | 'L')[] {
+  return state.fixtures
+    .filter((f) => f.result && (f.homeId === clubId || f.awayId === clubId))
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-games)
+    .map((f) => {
+      const [h, a] = f.result!.score;
+      const so = f.result!.shootout;
+      const mine = f.homeId === clubId ? h : a;
+      const theirs = f.homeId === clubId ? a : h;
+      if (mine !== theirs) return mine > theirs ? 'W' : 'L';
+      if (so && !f.leg) return (f.homeId === clubId ? so[0] > so[1] : so[1] > so[0]) ? 'W' : 'L';
+      return 'D';
+    });
+}
+
 /** A club's country: stored since national competitions; worked out for older saves. */
 export function clubCountry(state: CareerState, clubId: string): string | undefined {
   return state.clubCountries?.[clubId] ?? ADRIATIC_CLUB_COUNTRIES[clubId] ?? (clubId.startsWith('GEN-vrl') ? 'SRB' : undefined);

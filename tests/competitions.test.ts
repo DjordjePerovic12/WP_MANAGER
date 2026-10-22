@@ -172,3 +172,17 @@ describe('VRL national competitions', () => {
     expect(record.cupName).toBe('Serbian Cup');
   });
 });
+
+describe('form', () => {
+  it('shows the last five games in every competition, newest last', async () => {
+    const { recentForm, gameWinner: winner } = await import('../game');
+    const c = finish(createCareer({ league: leagueDef('cro'), realTeams: generateLeague(11, 4), managedClubId: 't1', seed: 5, now: NOW }));
+    for (const club of ['t1', 't2']) {
+      const games = c.fixtures.filter((f) => f.result && (f.homeId === club || f.awayId === club)).sort((a, b) => a.date.localeCompare(b.date));
+      const last = games.at(-1)!;
+      const form = recentForm(c, club);
+      expect(form).toHaveLength(5);
+      expect(form.at(-1)).toBe(winner(last) === club ? 'W' : 'L');
+    }
+  });
+});
