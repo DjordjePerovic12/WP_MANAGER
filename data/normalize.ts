@@ -195,56 +195,91 @@ export function normalizeEuropeanAquatics(raw: EaSeason): DataSet {
   };
 }
 
+/** Squad shape the engine plays with: of 11 field players, 2 centers, 2 center-defenders, 2 wings, 2 points, the rest drivers. */
+const SHAPE: [Position, number][] = [['CENTER', 2 / 11], ['CDEF', 2 / 11], ['WING', 2 / 11], ['POINT', 2 / 11]];
+
+/** Stable 0..1 from a string, so the same player always lands in the same place. */
+function hash01(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return ((h >>> 0) % 10000) / 10000;
+}
+
 /**
- * The source only marks goalkeepers, so field positions are inferred from how each player plays,
- * relative to their own squad (positions in water polo are fluid; this aims for a realistic shape):
- * - center (2 per squad): most shots from 2m
- * - center-defender (2): most exclusions committed at 2m (they guard the opposing center)
- * - wing (2): highest share of shots on the 6 on 5 (they play the posts and sides)
- * - point (2): highest share of outside "action" shots
- * - driver: everyone else (swimmers, sprinters, counterattackers)
- * Players with no matches yet keep the default (driver). Correct anyone in data/overrides.json.
+ * Most sources only mark goalkeepers, so field positions are inferred, per club, in two steps.
+ * Positions in water polo are fluid; this aims for a realistic squad shape (see SHAPE).
+ * Official positions are kept and count towards the shape.
+ * 1. From how each player plays, relative to their own squad:
+ *    - center: most shots from 2m
+ *    - center-defender: most exclusions committed at 2m (they guard the opposing center)
+ *    - wing: highest share of shots on the 6 on 5 (they play the posts and sides)
+ *    - point: highest share of outside "action" shots
+ * 2. Places still open go to players the stats say nothing about: the tallest to center and
+ *    center-defender, left-handers to the wings, the rest spread evenly. Everyone else is a driver.
+ * Run it again after merging sources: it starts over for every non-official field player.
+ * Correct anyone in data/overrides.json.
  */
 export function inferPositions(players: RealPlayer[], lines: PlayerMatchLine[]) {
   const byPlayer = new Map<string, PlayerMatchLine[]>();
   for (const l of lines) byPlayer.set(l.playerId, [...(byPlayer.get(l.playerId) ?? []), l]);
 
   type Profile = { player: RealPlayer; games: number; attempts: number; center: number; extra: number; action: number; centerExcl: number };
-  const byClub = new Map<string, Profile[]>();
-  for (const p of players) {
-    const ls = byPlayer.get(p.id);
-    if (p.position === 'GK' || !ls?.length) continue;
-    const sum = (f: (l: PlayerMatchLine) => number) => ls.reduce((s, l) => s + f(l), 0);
-    const profile: Profile = {
-      player: p,
-      games: ls.length,
-      attempts: sum((l) => l.shots.total[1]),
-      center: sum((l) => l.shots.center[1]),
-      extra: sum((l) => l.shots.extra[1]),
-      action: sum((l) => l.shots.action[1]),
-      centerExcl: sum((l) => l.exclusionsCenter),
-    };
-    byClub.set(p.clubId, [...(byClub.get(p.clubId) ?? []), profile]);
-  }
+  const byClub = new Map<string, RealPlayer[]>();
+  for (const p of players) if (p.position !== 'GK') byClub.set(p.clubId, [...(byClub.get(p.clubId) ?? []), p]);
 
-  for (const squad of byClub.values()) {
-    const open = new Set(squad);
-    const assign = (position: Position, count: number, score: (x: Profile) => number) => {
-      const ranked = [...open].filter((x) => score(x) > 0).sort((a, b) => score(b) - score(a)).slice(0, count);
-      for (const x of ranked) {
-        x.player.position = position;
-        x.player.positionSource = 'inferred';
-        open.delete(x);
-      }
+  for (const field of byClub.values()) {
+    const quota = new Map<Position, number>(SHAPE.map(([pos, share]) => [pos, Math.max(1, Math.round(field.length * share))]));
+    for (const p of field) if (p.positionSource === 'official' && quota.has(p.position)) quota.set(p.position, quota.get(p.position)! - 1);
+    const open = new Set(field.filter((p) => p.positionSource !== 'official'));
+    const place = (p: RealPlayer, position: Position, source: RealPlayer['positionSource']) => {
+      p.position = position;
+      p.positionSource = source;
+      quota.set(position, quota.get(position)! - 1);
+      open.delete(p);
     };
-    const share = (n: number, x: Profile) => (x.attempts >= 2 ? n / x.attempts : 0);
-    assign('CENTER', 2, (x) => x.center + share(x.center, x));
-    assign('CDEF', 2, (x) => x.centerExcl / x.games);
-    assign('WING', 2, (x) => share(x.extra, x));
-    assign('POINT', 2, (x) => share(x.action, x));
-    for (const x of open) {
-      x.player.position = 'DRIVER';
-      x.player.positionSource = 'inferred';
+
+    // 1. From the stats.
+    const profiles: Profile[] = [];
+    for (const p of open) {
+      const ls = byPlayer.get(p.id);
+      if (!ls?.length) continue;
+      const sum = (f: (l: PlayerMatchLine) => number) => ls.reduce((s, l) => s + f(l), 0);
+      profiles.push({
+        player: p,
+        games: ls.length,
+        attempts: sum((l) => l.shots.total[1]),
+        center: sum((l) => l.shots.center[1]),
+        extra: sum((l) => l.shots.extra[1]),
+        action: sum((l) => l.shots.action[1]),
+        centerExcl: sum((l) => l.exclusionsCenter),
+      });
     }
+    const share = (n: number, x: Profile) => (x.attempts >= 2 ? n / x.attempts : 0);
+    const byStats: [Position, (x: Profile) => number][] = [
+      ['CENTER', (x) => x.center + share(x.center, x)],
+      ['CDEF', (x) => x.centerExcl / x.games],
+      ['WING', (x) => share(x.extra, x)],
+      ['POINT', (x) => share(x.action, x)],
+    ];
+    for (const [position, score] of byStats) {
+      const ranked = profiles.filter((x) => open.has(x.player) && score(x) > 0).sort((a, b) => score(b) - score(a));
+      for (const x of ranked.slice(0, Math.max(0, quota.get(position)!))) place(x.player, position, 'inferred');
+    }
+
+    // 2. The squad shape, for players the stats don't place. Players without stats go first.
+    const withStats = new Set(profiles.map((x) => x.player));
+    const height = (p: RealPlayer) => p.heightCm ?? 190 + hash01(p.id + ':h') * 6;
+    const fill: [Position, (p: RealPlayer) => number][] = [
+      ['CENTER', height],
+      ['CDEF', height],
+      ['WING', (p) => (p.hand === 'L' ? 1 : 0) + hash01(p.id + ':w')],
+      ['POINT', (p) => hash01(p.id + ':p')],
+    ];
+    for (const [position, score] of fill) {
+      const ranked = [...open].sort((a, b) => Number(withStats.has(a)) - Number(withStats.has(b)) || score(b) - score(a));
+      for (const p of ranked.slice(0, Math.max(0, quota.get(position)!))) place(p, position, withStats.has(p) ? 'inferred' : 'default');
+    }
+    for (const p of open) p.position = 'DRIVER';
+    for (const p of open) p.positionSource = withStats.has(p) ? 'inferred' : 'default';
   }
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { simulateMatch } from '../engine/match';
 import { applyOverrides, enrichFromWorldAquatics, nameKey } from '../data/build';
-import { isoDate, normalizeEuropeanAquatics, parseShots, titleCase } from '../data/normalize';
+import { inferPositions, isoDate, normalizeEuropeanAquatics, parseShots, titleCase } from '../data/normalize';
+import type { RealPlayer } from '../data/model';
 import { isPlayable, ratePlayers, toEngineTeams } from '../data/ratings';
 import { computeRealStats } from '../data/realstats';
 import type { EaSeason, EaStatRow } from '../data/sources/europeanaquatics';
@@ -188,5 +189,24 @@ describe('names', () => {
     expect(fixDj('DJordjije')).toBe('Đordjije');
     expect(fixDj('Djordje Petrovic')).toBe('Đordje Petrovic');
     expect(fixDj('Dejan')).toBe('Dejan');
+  });
+});
+
+describe('squad shape for players without stats', () => {
+  it('fills the positions the stats leave open, keeping official ones', () => {
+    const field = (i: number, extra: Partial<RealPlayer> = {}): RealPlayer => ({ id: `X${i}`, clubId: 'X', firstName: 'A', lastName: `B${i}`, position: 'DRIVER', positionSource: 'default', ...extra });
+    const players = [
+      field(0, { position: 'CENTER', positionSource: 'official' }),
+      field(1, { heightCm: 205 }),
+      field(2, { hand: 'L', heightCm: 180 }),
+      ...Array.from({ length: 8 }, (_, i) => field(i + 3, { heightCm: 180 + i })),
+      { ...field(99), position: 'GK' as const, positionSource: 'official' as const },
+    ];
+    inferPositions(players, []);
+    const count = (pos: string) => players.filter((p) => p.position === pos).length;
+    expect([count('GK'), count('CENTER'), count('CDEF'), count('WING'), count('POINT'), count('DRIVER')]).toEqual([1, 2, 2, 2, 2, 3]);
+    expect(players[0]).toMatchObject({ position: 'CENTER', positionSource: 'official' });
+    expect(players[1].position).toBe('CENTER'); // the tallest
+    expect(players[2].position).toBe('WING'); // the left-hander
   });
 });

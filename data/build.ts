@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DataSet, RealPlayer } from './model';
-import { nameKey, normalizeEuropeanAquatics } from './normalize';
+import { inferPositions, nameKey, normalizeEuropeanAquatics } from './normalize';
 import { readCache } from './http';
 import { loadCachedEuropeanAquatics } from './sources/europeanaquatics';
 import type { WaAthlete } from './sources/worldaquatics';
@@ -77,6 +77,8 @@ export function buildDataSet(): DataSet {
   // Domestic leagues: more clubs, players and stats (only what has been fetched).
   let merged = data;
   for (const extra of [loadHvs(), loadMvlsz(), loadAsaMalta()]) if (extra) merged = mergeDataSets(merged, extra, { clubAliases: CLUB_ALIASES });
+  // Positions again over the merged squads and stats (each source alone sees only part of a club).
+  inferPositions(merged.players, merged.playerLines);
   for (const c of merged.clubs) if (CLUB_NAMES[c.id]) c.name = c.shortName = CLUB_NAMES[c.id];
   if (existsSync(OVERRIDES)) applyOverrides(merged, JSON.parse(readFileSync(OVERRIDES, 'utf8')).players ?? {});
   return merged;
