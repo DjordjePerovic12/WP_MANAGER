@@ -11,6 +11,8 @@ import { TUNING as T } from './tuning';
 import type { Attributes, EnergySnapshot, MatchEvent, MatchOptions, MatchResult, Player, Position, Situation, Tactics, Team } from './types';
 
 type Side = {
+  /** playing-time priority per player (squad roles); 1 when unset */
+  priority?: Record<string, number>;
   idx: 0 | 1;
   team: Team;
   /** Tactics in use right now (the AI coach may change them); team.tactics is never mutated. */
@@ -168,8 +170,8 @@ export class LiveMatch {
     const managed = options.managed ?? [false, false];
     this.injuriesOn = options.injuries ?? true;
     this.sides = [
-      this.makeSide(teams[0], 0, coach[0] && !managed[0], managed[0], options.autoSubs ?? true, options.lineups?.[0]),
-      this.makeSide(teams[1], 1, coach[1] && !managed[1], managed[1], options.autoSubs ?? true, options.lineups?.[1]),
+      { ...this.makeSide(teams[0], 0, coach[0] && !managed[0], managed[0], options.autoSubs ?? true, options.lineups?.[0]), priority: options.playingTime?.[0] },
+      { ...this.makeSide(teams[1], 1, coach[1] && !managed[1], managed[1], options.autoSubs ?? true, options.lineups?.[1]), priority: options.playingTime?.[1] },
     ];
     const formNoise = () => (this.rng.next() + this.rng.next() + this.rng.next() - 1.5) * 2 * T.matchFormSpread;
     this.form = [formNoise() + (options.formBonus?.[0] ?? 0), formNoise() + (options.formBonus?.[1] ?? 0)];
@@ -724,6 +726,8 @@ export class LiveMatch {
     const slot = side.slots[waterIndex];
     let value = overall(p, slot) * this.fitness(p);
     value *= positionFit(p.position, slot);
+    // Squad roles: the coach favours key players and gives backups fewer minutes.
+    value *= side.priority?.[p.id] ?? 1;
     if (RIGHT_SIDE.has(waterIndex) && p.hand === 'L') value += T.rightLeftyLineupBonus;
     // Everyone gets some minutes: a bench player who has barely played looks a little more attractive.
     if (side.bench.includes(p) && this.quarter >= 2) value *= 1 + T.rotationBonus * Math.max(0, 1 - this.seconds.get(p.id)! / T.rotationTargetSeconds);

@@ -20,7 +20,9 @@ export const EXPECTED_SHARE: Record<SquadStatus, number> = { key: 0.68, regular:
 /** Positions that rotate more: centers and center-defenders share the 2-metre minutes. */
 const POSITION_SHARE: Record<Player['position'], number> = { GK: 1, CENTER: 0.78, CDEF: 0.78, DRIVER: 1, WING: 0.95, POINT: 0.95 };
 /** The minutes a player expects: his role's share, adjusted for his position. */
-export const expectedShare = (status: SquadStatus, position: Player['position']) => EXPECTED_SHARE[status] * POSITION_SHARE[position];
+export const expectedShare = (status: SquadStatus, position: Player['position']) => (position === 'GK' ? GOALKEEPER_SHARE[status] : EXPECTED_SHARE[status] * POSITION_SHARE[position]);
+/** One goalkeeper plays the whole match: the first choice expects nearly all of it, a backup almost none. */
+const GOALKEEPER_SHARE: Record<SquadStatus, number> = { key: 0.85, regular: 0.5, rotation: 0.2, backup: 0.03, youth: 0.02 };
 
 const DEFAULT_HAPPINESS = 65;
 const RECENT_MATCHES = 6;
@@ -204,4 +206,12 @@ export function rejectTransferRequest(state: CareerState, playerId: string): { m
 /** Match-day form from happiness: a point off the key attributes when miserable, a point on when delighted. */
 export function moodShift(h: number) {
   return h < 25 ? -1 : h >= 85 ? 1 : 0;
+}
+
+/** Playing-time priority per player of the manager's club, from his role and any promise of minutes. */
+export function playingTimePriority(state: CareerState): Record<string, number> {
+  const club = state.teams.find((t) => t.id === state.managedClubId)!;
+  const BY_ROLE: Record<SquadStatus, number> = { key: 1.15, regular: 1.06, rotation: 1, backup: 0.92, youth: 0.92 };
+  const promised = new Set((state.promises ?? []).filter((p) => p.status === 'open' && p.kind === 'minutes').map((p) => p.playerId));
+  return Object.fromEntries(club.players.map((p) => [p.id, promised.has(p.id) ? Math.max(1.15, BY_ROLE[statusOf(state, p.id)] + 0.1) : BY_ROLE[statusOf(state, p.id)]]));
 }

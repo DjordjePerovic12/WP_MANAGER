@@ -619,3 +619,16 @@ button.active-sort { border-color: var(--accent); color: var(--accent); }
 .promise-list { list-style: none; padding: 0; margin: 4px 0; font-size: 13px; }
 .promise-list .promise-kept { color: #2a9d5c; } .promise-list .promise-broken { color: #c0392b; }
 .country-tag { margin-left: 6px; font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 3px; background: rgba(127,127,127,0.25); }
+
+/* Pre-match starting seven */
+.matchday-lineup { margin: 10px 0; }
+.lineup-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin: 6px 0 4px; }
+.lineup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 5px; }
+.lineup-chip { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; border: 1px solid rgba(127,127,127,0.3); cursor: pointer; font-size: 13px; }
+.lineup-chip.starting { border-color: var(--accent); background: rgba(10,111,184,0.1); }
+.lineup-chip.picked { box-shadow: 0 0 0 2px #ffb703; }
+.lineup-chip.swappable { border-style: dashed; border-color: #ffb703; }
+.lineup-cap { font-weight: 800; min-width: 18px; text-align: center; }
+.lineup-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lineup-role { font-size: 10px; font-weight: 700; padding: 0 4px; border-radius: 3px; background: rgba(127,127,127,0.25); }
+.lineup-role.role-key { background: #c98a00; color: #fff; } .lineup-role.role-regular { background: var(--accent); color: #fff; }

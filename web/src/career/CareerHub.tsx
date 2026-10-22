@@ -41,6 +41,7 @@ import { ClubTab } from './ClubTab';
 import { TransfersTab } from './TransfersTab';
 import { StaffPanel } from './StaffPanel';
 import { InboxTab, waiting } from './InboxTab';
+import { MatchdayLineup } from './MatchdayLineup';
 import { AcademyTab } from './AcademyTab';
 import { PlayerLink, ProfileProvider, RatingBadge } from './PlayerProfile';
 import { Bracket, CompTag, competitionKind, playoffCutoff } from './CompetitionsTab';
@@ -216,6 +217,7 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
                     <TeamBadge career={career} id={fixture.awayId} table={table} fixture={fixture} />
                   </div>
                   <Readiness career={career} />
+                  <MatchdayLineup career={career} onChange={onChange} />
                   <h4>Your tactics</h4>
                   <TacticsFields tactics={career.tactics} onChange={(t) => onChange({ ...career, tactics: t })} />
                   <div className="controls">

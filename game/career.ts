@@ -15,7 +15,7 @@ import { ADRIATIC_CLUB_COUNTRIES, generatedClub, isRealClub, type LeagueDef } fr
 import { advanceCompetitions, knockoutCompetitions, resolveClashes, type KnockoutRound, type Series } from './competitions';
 import { academyWeek, freeCap, initialAcademy, youthContract } from './academy';
 import { buildEurope, realEntries2026, type EuropeSeason } from './europe';
-import { atmosphere, happinessOf, moodShift, updateHappiness, type SquadStatus } from './happiness';
+import { atmosphere, happinessOf, moodShift, playingTimePriority, updateHappiness, type SquadStatus } from './happiness';
 import { boardWelcome, inboxWeek, leadersOf, type InboxItem, type PlayerPromise } from './inbox';
 import { boardExpectation, initialPotential, MIN_SQUAD, START_SQUAD, youthIntake } from './development';
 import type { SeasonRecord, PlayerSeasonEntry, SummerReport } from './seasons';
@@ -45,6 +45,7 @@ import {
   matchInjuries,
   moraleAfter,
   moraleBonus,
+  assistantStarters,
   pickMatchday,
   validStarters,
   type NewsItem,
@@ -889,7 +890,15 @@ export function recordResult(input: CareerState, fixtureId: string, result: Matc
 /** The 13 a club names for a match (the manager's choice for their own club, else the assistant's). */
 export function matchdaySquad(state: CareerState, clubId: string): string[] {
   const team = teamFor(state, clubId);
-  return pickMatchday(team, state.squad, clubId === state.managedClubId ? state.selection?.matchday : undefined);
+  const managed = clubId === state.managedClubId;
+  return pickMatchday(team, state.squad, managed ? state.selection?.matchday : undefined, managed ? playingTimePriority(state) : undefined);
+}
+
+/** The starting seven for the manager's club: his own pick, or the assistant's (which respects squad roles). */
+export function startingSeven(state: CareerState): string[] | undefined {
+  const team = teamFor(state, state.managedClubId);
+  const matchday = matchdaySquad(state, state.managedClubId);
+  return validStarters(team, matchday, state.selection?.starters) ?? assistantStarters(team, matchday, state.squad, playingTimePriority(state));
 }
 
 /**
@@ -911,7 +920,7 @@ export function matchSetup(input: CareerState, fixture: Fixture): { home: Team; 
         .filter((p) => matchday.includes(p.id))
         .map((p) => (mood(p) ? { ...p, attrs: { ...p.attrs, ...Object.fromEntries(moodAttrs.map((k) => [k, Math.max(1, Math.min(20, p.attrs[k] + mood(p)))])) } } : p)),
     };
-    const starters = clubId === state.managedClubId ? validStarters(team, matchday, state.selection?.starters) : undefined;
+    const starters = clubId === state.managedClubId ? startingSeven(state) : undefined;
     return { team: squadTeam, starters };
   };
   const home = side(fixture.homeId);
@@ -928,6 +937,8 @@ export function matchSetup(input: CareerState, fixture: Fixture): { home: Team; 
       shootoutOnDraw: !fixture.leg,
       initialEnergy: energy,
       lineups: [home.starters, away.starters],
+      // Squad roles shape the assistant's substitutions for the manager's club.
+      playingTime: [fixture.homeId === state.managedClubId ? playingTimePriority(state) : undefined, fixture.awayId === state.managedClubId ? playingTimePriority(state) : undefined],
       formBonus: [
         // The manager's club: half results (morale), half the dressing room (players' happiness).
         moraleBonus(teamMorale(state, fixture.homeId)) + (fixture.homeId === state.managedClubId ? assistantFormBonus(state.staff) : 0),

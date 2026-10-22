@@ -75,3 +75,22 @@ describe('player happiness', () => {
     expect(miserable.attrs.passing).toBe(Math.max(1, normal.attrs.passing - 1));
   });
 });
+
+describe('the assistant respects squad roles', () => {
+  const c = start();
+  const club = c.teams.find((t) => t.id === c.managedClubId)!;
+  const weakest = [...club.players].filter((p) => p.position !== 'GK').sort((a, b) => overall(a) - overall(b))[0];
+
+  it('names and starts a key player even if he is not among the best', async () => {
+    const { matchdaySquad, startingSeven } = await import('../game');
+    const keyed = setSquadStatus(c, weakest.id, 'key').state;
+    expect(matchdaySquad(keyed, c.managedClubId)).toContain(weakest.id);
+    expect(startingSeven(keyed)).toContain(weakest.id);
+    expect(startingSeven(c)?.[0]).toBe(club.players.filter((p) => p.position === 'GK').sort((a, b) => overall(b) - overall(a))[0].id);
+  });
+
+  it('gives a key player more minutes than the same player as a backup', () => {
+    const minutes = (s: CareerState) => play(s, 8).playerStats[weakest.id]?.minutes ?? 0;
+    expect(minutes(setSquadStatus(c, weakest.id, 'key').state)).toBeGreaterThan(minutes(setSquadStatus(c, weakest.id, 'backup').state) + 30);
+  });
+});

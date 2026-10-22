@@ -114,6 +114,12 @@ export interface MatchOptions {
   initialEnergy?: Record<string, number>;
   /** Starting seven per team (goalkeeper first, then six field players). Unset = the coach picks. */
   lineups?: [string[] | undefined, string[] | undefined];
+  /**
+   * Playing-time priority per player, per team (default 1): the coach's rolling substitutions keep
+   * higher-priority players in the water longer and bring them back sooner. A squad role, e.g.
+   * key players 1.15, backups 0.92. Unset = the coach only looks at ability and fitness.
+   */
+  playingTime?: [Record<string, number> | undefined, Record<string, number> | undefined];
   /** Added to each team's match-day form, e.g. from morale (about −0.03 to +0.03). */
   formBonus?: [number, number];
   /** Allow in-match injuries (default true). */

@@ -111,10 +111,13 @@ export const MATCHDAY_MINIMUM = 7;
  * Without a pick, the assistant names the best 13: two goalkeepers and eleven
  * field players, favouring fresh legs.
  */
-export function pickMatchday(team: Team, squad: Record<string, PlayerCondition>, wanted?: string[]): string[] {
+export function pickMatchday(team: Team, squad: Record<string, PlayerCondition>, wanted?: string[], priority?: Record<string, number>): string[] {
   const fit = team.players.filter((p) => available(squad, p.id));
   const cond = (p: Player) => squad[p.id]?.condition ?? 100;
-  const rank = (ps: Player[]) => [...ps].sort((a, b) => selectionValue(b, cond(b)) - selectionValue(a, cond(a)));
+  // Squad roles: key players (and anyone promised minutes) come first; the rest by ability, fitness and role.
+  const must = (p: Player) => (priority?.[p.id] ?? 1) >= MUST_PLAY;
+  const value = (p: Player) => selectionValue(p, cond(p)) * (priority?.[p.id] ?? 1) + (must(p) ? 100 : 0);
+  const rank = (ps: Player[]) => [...ps].sort((a, b) => value(b) - value(a));
   const keepers = rank(fit.filter((p) => p.position === 'GK'));
   const field = rank(fit.filter((p) => p.position !== 'GK'));
 
@@ -130,6 +133,30 @@ export function pickMatchday(team: Team, squad: Record<string, PlayerCondition>,
   }
   const named = [...keepers.slice(0, MATCHDAY_GOALKEEPERS), ...field.slice(0, MATCHDAY_SIZE - Math.min(MATCHDAY_GOALKEEPERS, keepers.length))];
   return named.map((p) => p.id);
+}
+
+/** Playing-time priority from which a player is always named and started (key players, promised minutes). */
+export const MUST_PLAY = 1.15;
+
+/**
+ * The assistant's starting seven when the manager hasn't picked one: the goalkeeper with the
+ * biggest role, then key players and the best of the rest by ability, fitness and role, keeping a
+ * sensible mix (at most two centers, two center-defenders, two wings, two points, three drivers).
+ */
+export function assistantStarters(team: Team, matchday: string[], squad: Record<string, PlayerCondition>, priority: Record<string, number> = {}): string[] | undefined {
+  const players = matchday.map((id) => team.players.find((p) => p.id === id)).filter((p): p is Player => !!p);
+  const score = (p: Player) => selectionValue(p, squad[p.id]?.condition ?? 100) * (priority[p.id] ?? 1) + ((priority[p.id] ?? 1) >= MUST_PLAY ? 100 : 0);
+  const keeper = players.filter((p) => p.position === 'GK').sort((a, b) => score(b) - score(a))[0];
+  if (!keeper) return undefined;
+  const field = players.filter((p) => p.position !== 'GK').sort((a, b) => score(b) - score(a));
+  const caps: Partial<Record<Player['position'], number>> = { CENTER: 2, CDEF: 2, WING: 2, POINT: 2, DRIVER: 3 };
+  const chosen: Player[] = [];
+  for (const p of field) {
+    if (chosen.length === 6) break;
+    if (chosen.filter((x) => x.position === p.position).length < (caps[p.position] ?? 6)) chosen.push(p);
+  }
+  for (const p of field) if (chosen.length < 6 && !chosen.includes(p)) chosen.push(p);
+  return chosen.length === 6 ? [keeper.id, ...chosen.map((p) => p.id)] : undefined;
 }
 
 /** Starting seven within the matchday squad, if the manager's choice is valid. */
