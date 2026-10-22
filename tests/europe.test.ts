@@ -92,13 +92,28 @@ describe('small competitions', () => {
 });
 
 describe('European places', () => {
-  it('follows the association ranking', () => {
-    const order = (c: string) => Array.from({ length: 8 }, (_, i) => `${c}-${i + 1}`);
-    const e = allocateEntries({ ITA: order('ITA'), MNE: order('MNE'), GEO: order('GEO'), MLT: order('MLT') }, { cl: 'X' });
-    expect(e.clDirect).toEqual(['X', 'ITA-1', 'ITA-2']);
-    expect(e.clQual).toEqual(['MNE-1', 'MNE-2', 'GEO-1']);
-    expect(e.ecQual).toEqual(['ITA-3', 'ITA-4', 'MNE-3', 'MNE-4', 'GEO-2']);
+  const order = (c: string) => Array.from({ length: 8 }, (_, i) => `${c}-${i + 1}`);
+
+  it('follows the 2026-27 access list', () => {
+    const e = allocateEntries({ ITA: order('ITA'), MNE: order('MNE'), GEO: order('GEO'), MLT: order('MLT') });
+    // Champions of associations 1–10 go straight to the groups; runners-up and 11–12 champions qualify.
+    expect(e.clDirect.sort()).toEqual(['ITA-1', 'MNE-1']);
+    expect(e.clQual.sort()).toEqual(['GEO-1', 'ITA-2', 'MNE-2']);
+    expect(e.ecQual.sort()).toEqual(['GEO-2', 'ITA-3', 'ITA-4', 'MNE-3', 'MNE-4']);
     expect(e.ccQ1).toContain('MLT-1');
-    expect(e.chQ1).toEqual(['MLT-2', 'MLT-3', 'MLT-4']);
+    expect(e.chQ1.sort()).toEqual(['MLT-2', 'MLT-3', 'MLT-4']);
+  });
+
+  it('gives a title holder its best place, never a worse one', () => {
+    // National champion of Montenegro who also won the Conference Cup: Champions League groups, not the Euro Cup.
+    const e = allocateEntries({ MNE: order('MNE') }, { cc: 'MNE-1' });
+    expect(e.clDirect).toContain('MNE-1');
+    expect(e.ecQual).not.toContain('MNE-1');
+    // A Euro Cup winner who finished 5th at home: Champions League qualification.
+    const f = allocateEntries({ ITA: order('ITA') }, { ec: 'ITA-5' });
+    expect(f.clQual).toContain('ITA-5');
+    expect(f.ccQ1).not.toContain('ITA-5');
+    // The Champions League winner, whatever its league finish: the groups.
+    expect(allocateEntries({ ITA: order('ITA') }, { cl: 'ITA-7' }).clDirect).toContain('ITA-7');
   });
 });
