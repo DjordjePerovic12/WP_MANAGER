@@ -122,46 +122,51 @@ const REAL_2026 = {
 // ---------------------------------------------------------------- qualification
 
 /**
- * European places from each country's finishing order (best first). Per country rank:
- * Champions League: champions of 1–8 and runners-up of 1–2 straight to the groups; champions of
- * 9–12 and runners-up of 3–10 in qualification. Euro Cup: 3rd and 4th of 1–10, runners-up of 11–12.
- * Conference Cup: 5th and 6th of 1–10, 3rd–5th of 11–12, champions of 13+. Challenger Cup: 2nd–4th of 13+.
- * Title holders (Champions League or Euro Cup winners) go straight to the Champions League groups,
- * the Conference Cup winner to the Euro Cup, the Challenger Cup winner to the Conference Cup.
+ * European places from each country's finishing order (best first), per the 2026-27 access rules:
+ * - Champions League groups: the champions of associations 1–10 and the Champions League holder.
+ * - Champions League qualification: runners-up of 1–10, champions of 11–12, the Euro Cup holder.
+ * - Euro Cup qualification: 3rd and 4th of 1–10, runners-up of 11–12, the Conference Cup holder.
+ * - Conference Cup: 5th and 6th of 1–10, 3rd–5th of 11–12, champions of 13+, the Challenger Cup holder.
+ * - Challenger Cup: 2nd–4th of 13+.
+ * Every club takes the best place it is entitled to: a holder's place goes unused when the club
+ * already did better through its league (as European Aquatics does), and never pushes it down.
  */
 export function allocateEntries(orders: Record<string, string[]>, holders: Partial<Record<EuroId, string>> = {}): EuroEntries {
-  const e: EuroEntries = { clDirect: [], clQual: [], ecQual: [], ecGroups: [], ccQ1: [], chQ1: [] };
-  const placed = new Set<string>();
-  const put = (list: string[], id: string | undefined) => {
-    if (id && !placed.has(id)) {
-      list.push(id);
-      placed.add(id);
-    }
+  // Entitlement levels, best first.
+  const LEVELS = ['clDirect', 'clQual', 'ecQual', 'ccQ1', 'chQ1'] as const;
+  type Level = (typeof LEVELS)[number];
+  const best = new Map<string, Level>();
+  const offer = (id: string | undefined, level: Level) => {
+    if (!id) return;
+    const current = best.get(id);
+    if (!current || LEVELS.indexOf(level) < LEVELS.indexOf(current)) best.set(id, level);
   };
-  put(e.clDirect, holders.cl);
-  put(e.clDirect, holders.ec);
-  put(e.ecQual, holders.cc);
-  put(e.ccQ1, holders.ch);
   for (const [country, order] of Object.entries(orders)) {
     if (BANNED.includes(country)) continue;
     const rank = associationRank(country);
     const at = (place: number) => order[place - 1];
     if (rank <= 10) {
-      put(rank <= 8 ? e.clDirect : e.clQual, at(1));
-      put(rank <= 2 ? e.clDirect : e.clQual, at(2));
-      put(e.ecQual, at(3));
-      put(e.ecQual, at(4));
-      put(e.ccQ1, at(5));
-      put(e.ccQ1, at(6));
+      offer(at(1), 'clDirect');
+      offer(at(2), 'clQual');
+      offer(at(3), 'ecQual');
+      offer(at(4), 'ecQual');
+      offer(at(5), 'ccQ1');
+      offer(at(6), 'ccQ1');
     } else if (rank <= 12) {
-      put(e.clQual, at(1));
-      put(e.ecQual, at(2));
-      for (const p of [3, 4, 5]) put(e.ccQ1, at(p));
+      offer(at(1), 'clQual');
+      offer(at(2), 'ecQual');
+      for (const p of [3, 4, 5]) offer(at(p), 'ccQ1');
     } else {
-      put(e.ccQ1, at(1));
-      for (const p of [2, 3, 4]) put(e.chQ1, at(p));
+      offer(at(1), 'ccQ1');
+      for (const p of [2, 3, 4]) offer(at(p), 'chQ1');
     }
   }
+  offer(holders.cl, 'clDirect');
+  offer(holders.ec, 'clQual');
+  offer(holders.cc, 'ecQual');
+  offer(holders.ch, 'ccQ1');
+  const e: EuroEntries = { clDirect: [], clQual: [], ecQual: [], ecGroups: [], ccQ1: [], chQ1: [] };
+  for (const [id, level] of best) e[level].push(id);
   return e;
 }
 
@@ -202,11 +207,11 @@ export function europeanCalendar(year: number, entries: EuroEntries, real2026: b
   const thus = (from: string, offsets: number[]) => days(onOrAfter(from, THU), offsets);
   const tournament = (from: string) => days(onOrAfter(from, TUE), [0, 1, 2]);
   const finalFour = (from: string) => days(onOrAfter(from, FRI), [0, 1]);
-  const clQualLosers = Math.max(0, entries.clQual.length - 6) + entries.ecGroups.length;
+  const clQualLosers = Math.max(0, entries.clQual.length - Math.max(0, 16 - entries.clDirect.length)) + entries.ecGroups.length;
   const phase = (p: Omit<EuroPhase, 'status' | 'entrants'> & { entrants?: string[] }): EuroPhase => ({ entrants: [], status: 'waiting', ...p });
   return [
     // Champions League
-    phase({ id: 'cl-q', comp: 'cl', name: 'Qualification', kind: 'tournament', dates: days(onOrAfter(`${year}-09-15`, FRI), [0, 1, 2]), entrants: entries.clQual, sources: [], target: Math.min(6, entries.clQual.length), next: 'cl-g', drop: { phase: 'ec-g', places: 'rest' }, ...(real2026 ? { status: 'done' as const, qualified: [] } : {}) }),
+    phase({ id: 'cl-q', comp: 'cl', name: 'Qualification', kind: 'tournament', dates: days(onOrAfter(`${year}-09-15`, FRI), [0, 1, 2]), entrants: entries.clQual, sources: [], target: Math.min(Math.max(0, 16 - entries.clDirect.length), entries.clQual.length), next: 'cl-g', drop: { phase: 'ec-g', places: 'rest' }, ...(real2026 ? { status: 'done' as const, qualified: [] } : {}) }),
     phase({ id: 'cl-g', comp: 'cl', name: 'Group stage', kind: 'groups', dates: tues(`${year}-10-06`, [0, 21, 35, 42, 56, 70]), entrants: entries.clDirect, sources: ['cl-q'], target: 8, next: 'cl-qf', drop: { phase: 'ec-ko', places: [3, 4] } }),
     phase({ id: 'cl-qf', comp: 'cl', name: 'Quarter-final round', kind: 'groups', dates: tues(`${y1}-02-02`, [0, 14, 28, 49, 63, 77]), sources: ['cl-g'], target: 4, next: 'cl-f4' }),
     phase({ id: 'cl-f4', comp: 'cl', name: 'Final Four', kind: 'finalFour', dates: finalFour(`${y1}-05-12`), sources: ['cl-qf'], target: 1 }),
