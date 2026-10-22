@@ -18,6 +18,7 @@ import {
   wageBill,
   wageRoom,
   playerView,
+  clubById,
   scoutPlayer,
   scoutingLeft,
   ATTRIBUTE_LABELS,
@@ -91,7 +92,8 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
   const [position, setPosition] = useState<Position | 'ALL'>('ALL');
   const [maxAge, setMaxAge] = useState(40);
   const [maxPrice, setMaxPrice] = useState(0);
-  const [freeOnly, setFreeOnly] = useState(false);
+  const [where, setWhere] = useState<'all' | 'league' | 'abroad' | 'free'>('all');
+  const [country, setCountry] = useState('ALL');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<'ovr' | 'pot' | 'price' | 'age'>('ovr');
   const [active, setActive] = useState<string | null>(null);
@@ -108,7 +110,8 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
     .filter((m) => position === 'ALL' || m.player.position === position)
     .filter((m) => m.player.age <= maxAge)
     .filter((m) => !maxPrice || m.askingPrice <= maxPrice)
-    .filter((m) => !freeOnly || m.clubId === null)
+    .filter((m) => (where === 'free' ? m.clubId === null : where === 'abroad' ? !!m.abroad : where === 'league' ? !!m.clubId && !m.abroad : true))
+    .filter((m) => country === 'ALL' || m.country === country)
     .filter((m) => !search || m.player.name.toLowerCase().includes(search.toLowerCase()) || m.clubName.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) =>
       // Sorting uses what you can see (estimates for unscouted players), not the hidden truth.
@@ -171,7 +174,24 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
           </select>
         </label>
         <label>
-          <input type="checkbox" checked={freeOnly} onChange={(e) => setFreeOnly(e.target.checked)} /> Free agents only
+          Where{' '}
+          <select value={where} onChange={(e) => setWhere(e.target.value as typeof where)}>
+            <option value="all">Everywhere</option>
+            <option value="league">Your league</option>
+            <option value="abroad">Abroad</option>
+            <option value="free">Free agents</option>
+          </select>
+        </label>
+        <label>
+          Country{' '}
+          <select value={country} onChange={(e) => setCountry(e.target.value)}>
+            <option value="ALL">All</option>
+            {[...new Set(all.map((m) => m.country).filter((c): c is string => !!c))].sort().map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           Sort{' '}
@@ -204,7 +224,7 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
               const id = m.player.id;
               const bid = bids[id];
               const agreed = bid?.agreedFee !== undefined;
-              const team = m.clubId ? career.teams.find((t) => t.id === m.clubId)! : undefined;
+              const team = m.clubId ? clubById(career, m.clubId) : undefined;
               const t = active === id ? playerTerms(career, id) : undefined;
               const msg = messages[id];
               return (
@@ -215,6 +235,7 @@ function Market({ career, onChange }: { career: CareerState; onChange: (c: Caree
                     </td>
                     <td className="club-cell">
                       {team && <Crest team={team} size={16} />} {m.clubName}
+                      {m.abroad && m.country && <span className="country-tag">{m.country}</span>}
                     </td>
                     <td>{m.player.position}</td>
                     <td>{m.player.age}</td>

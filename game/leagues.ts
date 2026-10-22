@@ -152,6 +152,50 @@ export const LEAGUES: LeagueDef[] = [
     cup: { name: 'Magyar Kupa' },
   },
   {
+    // France: Élite, 10 clubs (Marseille, Strasbourg and Pays d'Aix from the European data).
+    id: 'fra',
+    name: 'French Élite',
+    countries: ['FRA'],
+    size: 10,
+    fillerNames: [['Olympic Nice Natation', 'ONN'], ['CN Sète', 'SET'], ['Montpellier WP', 'MWP'], ['Taverny SN 95', 'TAV'], ['Douaisis WP', 'DOU'], ['USB Bordeaux', 'UBB'], ['AS Monaco', 'ASM']],
+    fillerQuality: [10, 12],
+    playoffs: { teams: 4, bestOf: [3, 3] },
+    cup: { name: 'Trophée Pierre Garsau' },
+  },
+  {
+    // Romania: Superliga (Steaua, Oradea and Dinamo from the European data).
+    id: 'rou',
+    name: 'Romanian Superliga',
+    countries: ['ROU'],
+    size: 7,
+    fillerNames: [['Rapid București', 'RAP'], ['Corona Brașov', 'COR'], ['Politehnica Cluj', 'POL'], ['Crișul Oradea', 'CRI']],
+    fillerQuality: [10, 12],
+    playoffs: { teams: 4, bestOf: [3, 5] },
+    cup: { name: 'Cupa României' },
+  },
+  {
+    // Turkey: Super League (Galatasaray, Enka and Heybeliada from the European data).
+    id: 'tur',
+    name: 'Turkish Super League',
+    countries: ['TUR'],
+    size: 7,
+    fillerNames: [['Adalar SK', 'ADA'], ['Fenerbahçe', 'FEN'], ['İstanbul BB', 'IBB'], ['ODTÜ', 'ODT']],
+    fillerQuality: [9.5, 11],
+    playoffs: { teams: 4, bestOf: [3, 3] },
+    cup: { name: 'Turkish Cup' },
+  },
+  {
+    // Georgia: a small league (Dinamo Tbilisi and A-Polo from the European data).
+    id: 'geo',
+    name: 'Georgian League',
+    countries: ['GEO'],
+    size: 4,
+    fillerNames: [['WPC Iberia Tbilisi', 'IBT'], ['Olymp Tbilisi', 'OLT']],
+    fillerQuality: [9.5, 10.5],
+    playoffs: { teams: 4, bestOf: [1, 1], finalFour: true },
+    cup: { name: 'Georgian Cup' },
+  },
+  {
     // Malta's main season is the summer: a double round robin from late June, two rounds a week,
     // then the Summer Knock-Out and the playoffs in August.
     id: 'mlt',

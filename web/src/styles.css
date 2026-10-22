@@ -618,3 +618,4 @@ button.active-sort { border-color: var(--accent); color: var(--accent); }
 .captain-tag { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 800; padding: 0 6px; border-radius: 4px; background: #c98a00; color: #fff; }
 .promise-list { list-style: none; padding: 0; margin: 4px 0; font-size: 13px; }
 .promise-list .promise-kept { color: #2a9d5c; } .promise-list .promise-broken { color: #c0392b; }
+.country-tag { margin-left: 6px; font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 3px; background: rgba(127,127,127,0.25); }

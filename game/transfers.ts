@@ -4,7 +4,7 @@
 import { createRng, type Rng } from '../engine/rng';
 import { overall, teamRating } from '../engine/ratings';
 import type { Player, Team } from '../engine/types';
-import { nextRound, seasonYear, type CareerState } from './career';
+import { allClubs, clubById, nextRound, seasonYear, type CareerState } from './career';
 import { MAX_REGISTERED, MAX_SQUAD } from './development';
 import { expectedWage, playerValue, respondToOffer, wageBill, type Contract, type FreeAgent, type RenewalDemand } from './finance';
 import { personalityOf } from './training';
@@ -38,6 +38,10 @@ export interface MarketEntry {
   /** null for free agents */
   clubId: string | null;
   clubName: string;
+  /** a club outside the manager's league */
+  abroad?: boolean;
+  /** the club's country (IOC code), when known */
+  country?: string;
   potential: number;
   value: number;
   askingPrice: number;
@@ -86,7 +90,8 @@ export function currentOffers(state: CareerState): IncomingOffer[] {
   return transferWindow(state) ? state.offers.filter((o) => o.window === windowKey(state)) : [];
 }
 
-const clubOf = (state: CareerState, playerId: string) => state.teams.find((t) => t.players.some((p) => p.id === playerId));
+/** The club a player is at: in the manager's league or abroad. */
+const clubOf = (state: CareerState, playerId: string) => allClubs(state).find((t) => t.players.some((p) => p.id === playerId));
 
 /** How important a player is to his club: rank by ability within the squad. */
 function squadRank(team: Team, p: Player) {
@@ -101,7 +106,9 @@ export function askingPrice(state: CareerState, playerId: string): number {
   const value = playerValue(p, state.potential[playerId]);
   const rank = squadRank(team, p);
   const importance = rank < 2 ? 2.2 : rank < 6 ? 1.5 : rank < 10 ? 1.15 : 0.85;
-  const yearsLeft = (state.contracts[playerId]?.until ?? seasonYear(state.season)) - seasonYear(state.season);
+  // Clubs abroad: their contracts aren't known in this game, so no discount for an ending deal.
+  const contract = state.contracts[playerId];
+  const yearsLeft = contract ? contract.until - seasonYear(state.season) : 2;
   const contractFactor = yearsLeft <= 0 ? 0.55 : yearsLeft === 1 ? 0.85 : 1;
   return round1000(Math.max(3000, value * importance * contractFactor));
 }
@@ -122,6 +129,20 @@ export function marketPlayers(state: CareerState): MarketEntry[] {
         askingWage: expectedWage(p, state.potential[p.id]),
       })),
     );
+  // The rest of Europe: every club abroad is open for business too.
+  const fromAbroad: MarketEntry[] = (state.foreign ?? []).flatMap((t) =>
+    t.players.map((p) => ({
+      player: p,
+      clubId: t.id,
+      clubName: t.name,
+      abroad: true,
+      country: state.clubCountries?.[t.id],
+      potential: state.potential[p.id] ?? overall(p),
+      value: playerValue(p, state.potential[p.id]),
+      askingPrice: askingPrice(state, p.id),
+      askingWage: expectedWage(p, state.potential[p.id]),
+    })),
+  );
   const free = state.freeAgents.map((f) => ({
     player: f.player,
     clubId: null,
@@ -131,7 +152,7 @@ export function marketPlayers(state: CareerState): MarketEntry[] {
     askingPrice: 0,
     askingWage: f.askingWage,
   }));
-  return [...fromClubs, ...free];
+  return [...fromClubs.map((m) => ({ ...m, country: state.clubCountries?.[m.clubId!] })), ...fromAbroad, ...free];
 }
 
 /**
@@ -175,7 +196,7 @@ export function playerTerms(state: CareerState, playerId: string): RenewalDemand
   if (!entry) throw new Error('Unknown player');
   const p = entry.player;
   const mine = state.teams.find((t) => t.id === state.managedClubId)!;
-  const theirs = entry.clubId ? state.teams.find((t) => t.id === entry.clubId)! : undefined;
+  const theirs = entry.clubId ? clubById(state, entry.clubId) : undefined;
   const personality = personalityOf(state.seed, p.id);
   const step = theirs ? teamRating(mine.players) - teamRating(theirs.players) : 1;
   // Joining a stronger club: happy to take a little less. A weaker one: wants more, and ambitious players may refuse.
@@ -241,8 +262,11 @@ export function signPlayer(state: CareerState, playerId: string, wage: number, y
     if (fromTeam && t.id === fromTeam.id) return { ...t, players: t.players.filter((p) => p.id !== playerId) };
     return t;
   });
+  // A player from abroad leaves his club there.
+  const foreign = fromTeam && state.foreign?.some((t) => t.id === fromTeam.id) ? state.foreign.map((t) => (t.id === fromTeam.id ? { ...t, players: t.players.filter((p) => p.id !== playerId) } : t)) : state.foreign;
   const finances = { ...state.finances, [mine.id]: { ...f, balance: f.balance - (fee ?? 0), ledger: [...f.ledger, ...(fee ? [{ round: nextRound(state) ?? 0, label: `Transfer: ${player.name}`, amount: -(fee ?? 0) }] : [])] } };
-  if (fromTeam && fee) finances[fromTeam.id] = { ...finances[fromTeam.id], balance: finances[fromTeam.id].balance + fee };
+  // Clubs abroad keep no books in this game; clubs in the league receive the fee.
+  if (fromTeam && fee && finances[fromTeam.id]) finances[fromTeam.id] = { ...finances[fromTeam.id], balance: finances[fromTeam.id].balance + fee };
   const record: TransferRecord = { season: state.season, playerId, playerName: player.name, fromClubId: fromTeam?.id ?? null, fromClubName: fromTeam?.name ?? 'Free agent', toClubId: mine.id, toClubName: mine.name, fee: fee ?? 0 };
   const news: NewsItem = { round: nextRound(state) ?? 0, kind: 'result', text: `Signed ${player.name} from ${record.fromClubName}${fee ? ` for ${formatFee(fee)}` : ' on a free'}.` };
   return {
@@ -251,6 +275,7 @@ export function signPlayer(state: CareerState, playerId: string, wage: number, y
     state: {
       ...state,
       teams,
+      foreign,
       finances,
       contracts: { ...state.contracts, [playerId]: { wage, until: year + years - 1 + (transferWindow(state) === 'summer' ? 0 : 1) } },
       squad: { ...state.squad, [playerId]: state.squad[playerId] ?? { condition: 100 } },

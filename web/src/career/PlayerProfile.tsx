@@ -37,7 +37,7 @@ import { ReportCard } from './ReportCard';
 import { MoodDetails, StatusSelect } from './Mood';
 
 /** Opens the profile of any player (yours, another club's, or a free agent) from anywhere in the career screens. */
-const ProfileContext = createContext<(playerId: string) => void>(() => {});
+export const ProfileContext = createContext<(playerId: string) => void>(() => {});
 
 export function ProfileProvider({ career, onChange, children }: { career: CareerState; onChange: (c: CareerState) => void; children: ReactNode }) {
   const [open, setOpen] = useState<string | null>(null);

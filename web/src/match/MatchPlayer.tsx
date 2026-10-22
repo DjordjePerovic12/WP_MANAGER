@@ -11,6 +11,7 @@ import {
   type Team,
 } from '../../../engine';
 import { Crest } from '../Crest';
+import { PlayerLink } from '../career/PlayerProfile';
 import { ManagerPanel } from '../ManagerPanel';
 import { PoolView } from '../pool/PoolView';
 import { crowd, horn, unlockAudio, whistle } from '../sound';
@@ -305,7 +306,9 @@ export function BoxScore({ result }: { result: MatchResult }) {
                   return (
                     <tr key={p.id} className={s.personalFouls >= 3 ? 'fouled-out' : ''}>
                       <td>{p.cap}</td>
-                      <td>{p.name}</td>
+                      <td>
+                        <PlayerLink id={p.id}>{p.name}</PlayerLink>
+                      </td>
                       <td>{p.position}</td>
                       <td>{formatClock(Math.round(s.seconds))}</td>
                       <td>{s.goals || ''}</td>

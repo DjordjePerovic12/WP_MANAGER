@@ -117,3 +117,25 @@ describe('European places', () => {
     expect(allocateEntries({ ITA: order('ITA') }, { cl: 'ITA-7' }).clDirect).toContain('ITA-7');
   });
 });
+
+describe('the transfer market abroad', () => {
+  it('lists and signs players from clubs outside the league', async () => {
+    const { marketPlayers, bidForPlayer, playerTerms, signPlayer, setWageBudget, wageBudgetRange } = await import('../game');
+    let c = createCareer({ league: vrl, realTeams: leagueClubs, managedClubId: 'EA-RAD', seed: 3, now: NOW, countries: CLUBS, world });
+    const abroad = marketPlayers(c).filter((m) => m.abroad);
+    expect(abroad.length).toBeGreaterThan(500);
+    expect(abroad.every((m) => m.country && m.country !== 'SRB' && m.country !== 'MNE')).toBe(true);
+    // A modest player from a Georgian club.
+    const target = abroad.filter((m) => m.country === 'GEO').sort((a, b) => a.askingPrice - b.askingPrice)[0];
+    // Make room in the budget, agree the fee, then terms.
+    c = { ...c, finances: { ...c.finances, 'EA-RAD': { ...c.finances['EA-RAD'], balance: 5_000_000 } } };
+    c = setWageBudget(c, wageBudgetRange(c.finances['EA-RAD']).max);
+    c = bidForPlayer(c, target.player.id, target.askingPrice).state;
+    const terms = playerTerms(c, target.player.id);
+    const out = signPlayer(c, target.player.id, Math.round(terms.wage * 1.2), terms.years);
+    expect(out.signed).toBe(true);
+    expect(out.state.teams.find((t) => t.id === 'EA-RAD')!.players.some((p) => p.id === target.player.id)).toBe(true);
+    expect(out.state.foreign!.find((t) => t.id === target.clubId)!.players.some((p) => p.id === target.player.id)).toBe(false);
+    expect(out.state.finances['EA-RAD'].balance).toBe(5_000_000 - target.askingPrice);
+  });
+});

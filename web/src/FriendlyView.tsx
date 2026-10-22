@@ -4,9 +4,19 @@ import type { League } from './api';
 import { Crest } from './Crest';
 import { MatchPlayer } from './match/MatchPlayer';
 import { TacticsFields } from './TacticsFields';
+import { PlayerLink } from './career/PlayerProfile';
+import { RealProfileProvider } from './RealPlayerCard';
 
 /** A one-off match between any two clubs. */
 export function FriendlyView({ league }: { league: League }) {
+  return (
+    <RealProfileProvider>
+      <Friendly league={league} />
+    </RealProfileProvider>
+  );
+}
+
+function Friendly({ league }: { league: League }) {
   const teams = league.teams;
   const [homeId, setHomeId] = useState(teams[0].id);
   const [awayId, setAwayId] = useState(teams[1].id);
@@ -111,7 +121,9 @@ function TeamPanel(props: { league: League; label: string; teamId: string; onTea
             {team.players.map((p) => (
               <tr key={p.id}>
                 <td>{p.cap}</td>
-                <td>{p.name}</td>
+                <td>
+                  <PlayerLink id={p.id}>{p.name}</PlayerLink>
+                </td>
                 <td>{p.position}</td>
                 <td>{p.hand}</td>
                 <td>{p.age}</td>
