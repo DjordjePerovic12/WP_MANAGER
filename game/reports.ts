@@ -8,6 +8,7 @@ import { averageRating, contractDemand, seasonYear, wageRoom, type CareerState, 
 import { expectedWage, playerValue } from './finance';
 import { playerView, type PlayerView } from './scouting';
 import { ATTRIBUTE_LABELS } from './squad';
+import { happinessOf, MOOD_LABELS, moodFactors, moodOf } from './happiness';
 import { askingPrice, marketPlayers } from './transfers';
 
 export type Tone = 'good' | 'ok' | 'bad';
@@ -266,6 +267,18 @@ export function playerReport(state: CareerState, playerId: string): PlayerReport
 
   if (own) {
     // --- Keep, renew or sell?
+    // His mood: a transfer request or deep unhappiness makes him hard to keep.
+    const h = happinessOf(state, p.id);
+    const worst = moodFactors(state, p)
+      .filter((f) => f.points < 0)
+      .sort((a, b) => a.points - b.points)[0];
+    if (state.transferRequests?.includes(p.id)) {
+      score -= 15;
+      cons.push({ text: `Has asked to leave${worst ? `: ${worst.text.toLowerCase()}` : ''}.`, tone: 'bad' });
+    } else if (h < 40) {
+      score -= 8;
+      cons.push({ text: `${MOOD_LABELS[moodOf(h)]}${worst ? `: ${worst.text.toLowerCase()}` : ''}.`, tone: 'bad' });
+    } else if (h >= 80) pros.push({ text: 'Delighted at the club.', tone: 'good' });
     const demand = contractDemand(state, p.id);
     wantedWage = demand.wage;
     const ending = yearsLeft !== undefined && yearsLeft <= 1;

@@ -584,3 +584,16 @@ button.active-sort { border-color: var(--accent); color: var(--accent); }
 .league-table tr.zone-ec td:first-child { box-shadow: inset 4px 0 0 #d4671c; }
 .league-table tr.zone-cc td:first-child { box-shadow: inset 4px 0 0 #1f8a4c; }
 .league-table tr.zone-ch td:first-child { box-shadow: inset 4px 0 0 #12858a; }
+
+/* Player mood */
+.mood { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: help; }
+.mood-delighted { background: rgba(42,157,92,0.22); color: #2a9d5c; }
+.mood-content { background: rgba(10,111,184,0.16); color: var(--accent); }
+.mood-unsettled { background: rgba(255,183,3,0.2); color: #c98a00; }
+.mood-unhappy { background: rgba(230,110,40,0.2); color: #d4671c; }
+.mood-wants-out { background: rgba(192,57,43,0.2); color: #c0392b; }
+.mood-bar { height: 6px; border-radius: 3px; background: rgba(127,127,127,0.25); overflow: hidden; margin: 6px 0; max-width: 260px; }
+.mood-bar span { display: block; height: 100%; padding: 0; border-radius: 0; }
+.mood-bar span.mood-delighted { background: #2a9d5c; } .mood-bar span.mood-content { background: var(--accent); } .mood-bar span.mood-unsettled { background: #ffb703; } .mood-bar span.mood-unhappy { background: #d4671c; } .mood-bar span.mood-wants-out { background: #c0392b; }
+.mood-details ul { list-style: none; padding: 0; margin: 4px 0 8px; font-size: 13px; display: grid; gap: 2px; }
+.status-select { font-size: 12px; padding: 2px 4px; }

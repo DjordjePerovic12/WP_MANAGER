@@ -15,6 +15,7 @@ import { ADRIATIC_CLUB_COUNTRIES, generatedClub, isRealClub, type LeagueDef } fr
 import { advanceCompetitions, knockoutCompetitions, resolveClashes, type KnockoutRound, type Series } from './competitions';
 import { academyWeek, freeCap, initialAcademy, youthContract } from './academy';
 import { buildEurope, realEntries2026, type EuropeSeason } from './europe';
+import { atmosphere, happinessOf, moodShift, updateHappiness, type SquadStatus } from './happiness';
 import { boardExpectation, initialPotential, MIN_SQUAD, START_SQUAD, youthIntake } from './development';
 import type { SeasonRecord, PlayerSeasonEntry, SummerReport } from './seasons';
 import type { Bid, IncomingOffer, TransferRecord } from './transfers';
@@ -167,6 +168,11 @@ export interface CareerState {
   competitions: Competition[];
   /** each club's country (IOC code), for national competitions in multi-country leagues */
   clubCountries?: Record<string, string>;
+  /** the manager's players: happiness (0–100), agreed squad status, matches spent miserable, transfer requests */
+  happiness?: Record<string, number>;
+  squadStatus?: Record<string, SquadStatus>;
+  unhappyWeeks?: Record<string, number>;
+  transferRequests?: string[];
   /** clubs outside the manager's league (for European competitions), with full squads */
   foreign?: Team[];
   /** this season's European competitions */
@@ -655,6 +661,12 @@ export function setWageBudget(state: CareerState, amount: number): CareerState {
   return { ...state, finances: { ...state.finances, [state.managedClubId]: { ...f, boardWageBudget: f.boardWageBudget ?? f.wageBudget, wageBudget } } };
 }
 
+/** Team morale for match day: for the manager's club, half results and half the dressing room. */
+export function teamMorale(state: CareerState, clubId: string) {
+  const morale = state.morale[clubId] ?? DEFAULT_MORALE;
+  return clubId === state.managedClubId && state.happiness ? Math.round((morale + atmosphere(state)) / 2) : morale;
+}
+
 /** Older names, from when the season was one league round per week. */
 export const nextRound = nextMatchday;
 export const totalRounds = totalMatchdays;
@@ -862,7 +874,15 @@ export function matchSetup(input: CareerState, fixture: Fixture): { home: Team; 
   const side = (clubId: string) => {
     const team = teamFor(state, clubId);
     const matchday = matchdaySquad(state, clubId);
-    const squadTeam = { ...team, players: team.players.filter((p) => matchday.includes(p.id)) };
+    // The manager's players: a miserable one plays a point below himself, a delighted one a point above.
+    const mood = (p: Player) => (clubId === state.managedClubId ? moodShift(happinessOf(state, p.id)) : 0);
+    const moodAttrs = ['shootingAccuracy', 'passing', 'gameIQ', 'positioning'] as const;
+    const squadTeam = {
+      ...team,
+      players: team.players
+        .filter((p) => matchday.includes(p.id))
+        .map((p) => (mood(p) ? { ...p, attrs: { ...p.attrs, ...Object.fromEntries(moodAttrs.map((k) => [k, Math.max(1, Math.min(20, p.attrs[k] + mood(p)))])) } } : p)),
+    };
     const starters = clubId === state.managedClubId ? validStarters(team, matchday, state.selection?.starters) : undefined;
     return { team: squadTeam, starters };
   };
@@ -881,8 +901,9 @@ export function matchSetup(input: CareerState, fixture: Fixture): { home: Team; 
       initialEnergy: energy,
       lineups: [home.starters, away.starters],
       formBonus: [
-        moraleBonus(state.morale[fixture.homeId] ?? DEFAULT_MORALE) + (fixture.homeId === state.managedClubId ? assistantFormBonus(state.staff) : 0),
-        moraleBonus(state.morale[fixture.awayId] ?? DEFAULT_MORALE) + (fixture.awayId === state.managedClubId ? assistantFormBonus(state.staff) : 0),
+        // The manager's club: half results (morale), half the dressing room (players' happiness).
+        moraleBonus(teamMorale(state, fixture.homeId)) + (fixture.homeId === state.managedClubId ? assistantFormBonus(state.staff) : 0),
+        moraleBonus(teamMorale(state, fixture.awayId)) + (fixture.awayId === state.managedClubId ? assistantFormBonus(state.staff) : 0),
       ],
     },
   };
@@ -933,6 +954,11 @@ export function simulateMatchday(input: CareerState, matchday: number, now?: str
     const abroad = new Set(next.foreign.flatMap((t) => t.players.map((p) => p.id)));
     week.squad = Object.fromEntries(Object.entries(week.squad).filter(([id]) => !abroad.has(id)));
   }
+  // After the manager's own match, the players' moods move.
+  if (next.fixtures.some((f) => f.matchday === matchday && f.result && (f.homeId === next.managedClubId || f.awayId === next.managedClubId))) {
+    const moods = updateHappiness({ ...next, teams: week.teams, squad: week.squad });
+    next = { ...next, happiness: moods.happiness, unhappyWeeks: moods.unhappyWeeks, transferRequests: moods.transferRequests, transferList: moods.transferList, news: moods.news };
+  }
   // The academy trains too.
   const youth = academyWeek({ ...next, teams: week.teams }, days, createRng((state.seed ^ Math.imul(matchday + 7, 0x2f6b)) >>> 0));
   next = { ...next, ...youth };
@@ -977,7 +1003,12 @@ export function contractDemand(state: CareerState, playerId: string): RenewalDem
   const played = state.playerStats[playerId]?.minutes ?? 0;
   const rounds = state.fixtures.filter((f) => f.result && (f.homeId === club.id || f.awayId === club.id)).length;
   const share = rounds ? played / (rounds * 32) : 0.5;
-  return renewalDemand(p, state.potential[playerId] ?? overall(p), state.seed, share);
+  const demand = renewalDemand(p, state.potential[playerId] ?? overall(p), state.seed, share);
+  // Happy players are keen to stay; unhappy ones want more to stay, if they stay at all.
+  const h = happinessOf(state, playerId);
+  if (h < 40) return { ...demand, wage: Math.round((demand.wage * 1.1) / 1000) * 1000, mood: 'reluctant' };
+  if (h >= 80 && demand.mood !== 'reluctant') return { ...demand, mood: 'keen' };
+  return demand;
 }
 
 /** Room under the wage budget if this player's current wage were replaced. */

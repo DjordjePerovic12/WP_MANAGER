@@ -12,3 +12,4 @@ export * from './reports';
 export * from './competitions';
 export * from './academy';
 export * from './europe';
+export * from './happiness';

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 import { overall, type Player } from '../../../engine';
 import {
   askingPrice,
+  rejectTransferRequest,
   allClubs,
   clubById,
   promoteYouth,
@@ -28,6 +29,7 @@ import {
 import { Crest } from '../Crest';
 import { Stars } from './SeasonReview';
 import { ReportCard } from './ReportCard';
+import { MoodDetails, StatusSelect } from './Mood';
 
 /** Opens the profile of any player (yours, another club's, or a free agent) from anywhere in the career screens. */
 const ProfileContext = createContext<(playerId: string) => void>(() => {});
@@ -267,6 +269,21 @@ export function PlayerProfile({ career, playerId, onChange, onClose }: { career:
                 </>
               )}
             </dl>
+            {own && (
+              <>
+                <h4>Mood and role</h4>
+                <MoodDetails career={career} player={player} />
+                <label className="small">
+                  Role <StatusSelect career={career} player={player} onChange={onChange} onMessage={setMessage} />
+                </label>
+                {career.transferRequests?.includes(player.id) && (
+                  <p className="warn-text small">
+                    He has asked to leave and is on the transfer list.{' '}
+                    <button onClick={() => act(rejectTransferRequest(career, player.id))}>Refuse the request</button>
+                  </p>
+                )}
+              </>
+            )}
             <div className="profile-actions">
               {academy && (
                 <>

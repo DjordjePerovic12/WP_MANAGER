@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { overall, type Player } from '../../../engine';
 import { matchdaySquad, MATCHDAY_MINIMUM, MATCHDAY_SIZE, potentialStars, setSelection, validStarters, type CareerState } from '../../../game';
 import { PlayerLink } from './PlayerProfile';
+import { MoodBadge, StatusSelect } from './Mood';
 import { Stars } from './SeasonReview';
 
 /** "1 GK · 3 C · 2 CD · 4 D · 2 W · 1 P" */
@@ -110,6 +111,8 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
               <th title="Potential (estimate)">Pot</th>
               <th>Fitness</th>
               <th>Status</th>
+              <th title="His role in the squad: it sets how many minutes he expects">Role</th>
+              <th title="How happy he is (hover for the reasons)">Mood</th>
               <th title="Appearances">Apps</th>
               <th title="Goals">G</th>
               <th title="Assists">A</th>
@@ -155,6 +158,12 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
                     ) : (
                       ''
                     )}
+                  </td>
+                  <td>
+                    <StatusSelect career={career} player={p} onChange={onChange} onMessage={setMessage} />
+                  </td>
+                  <td>
+                    <MoodBadge career={career} player={p} />
                   </td>
                   <td>{s?.apps ?? 0}</td>
                   <td>{s?.goals || ''}</td>

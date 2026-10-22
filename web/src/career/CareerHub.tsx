@@ -15,6 +15,7 @@ import {
   totalMatchdays,
   competitionName,
   knockoutResult,
+  atmosphere,
   europeanZones,
   EURO_NAMES,
   leagueDef,
@@ -305,6 +306,10 @@ function Readiness({ career }: { career: CareerState }) {
       <span>
         Morale <b>{career.morale[club.id] ?? 60}</b>
       </span>
+      <span title="The dressing room: the players' average happiness">
+        Atmosphere <b>{atmosphere(career)}</b>
+      </span>
+      {(career.transferRequests?.length ?? 0) > 0 && <span className="warn">{career.transferRequests!.length} transfer request{career.transferRequests!.length > 1 ? 's' : ''}</span>}
       <span className={injured ? 'warn' : ''}>
         Injured <b>{injured}</b>
       </span>
