@@ -33,6 +33,7 @@ import { aiTransferWindow, summerInterest, windowKey } from './transfers';
 import { staffMarket } from './staff';
 import { finalStandings, knockoutResult, takesPart, trophiesWon } from './competitions';
 import { academySummer } from './academy';
+import { boardWelcome, inboxWeek } from './inbox';
 import { allocateEntries, buildEurope, europeanResult } from './europe';
 import { resolveClashes } from './competitions';
 import { ADRIATIC_CLUB_COUNTRIES, generatedClub, isRealClub, leagueDef, type LeagueDef } from './leagues';
@@ -501,12 +502,13 @@ export function startNextSeason(state: CareerState, now = new Date().toISOString
   const offers = summerInterest(afterAi, rng).map((o) => ({ ...o, window: windowKey(afterAi) }));
   // A squad that came out of the summer too small is topped up from the academy.
   const ready = ensureSquads({ ...afterAi, offers, freeAgents: afterAi.freeAgents.slice(0, FREE_AGENTS_KEPT), expectation: boardExpectation(afterAi.teams, state.managedClubId) });
-  if (!ready.foreign?.length) return ready;
+  if (!ready.foreign?.length) return inboxWeek(boardWelcome(ready));
   // European places for the new season, from the season just finished.
   const holders = Object.fromEntries((state.europe?.comps ?? []).filter((c) => c.championId).map((c) => [c.id, c.championId!]));
   const entries = allocateEntries(europeanOrders(state, ready, rng), holders);
   const withEurope = buildEurope(ready, year, entries, (id) => clubById(ready, id));
-  return { ...withEurope, fixtures: numberMatchdays(resolveClashes(withEurope.fixtures)) };
+  // The board sets out the season; summer bids for the manager's players reach the inbox.
+  return inboxWeek(boardWelcome({ ...withEurope, fixtures: numberMatchdays(resolveClashes(withEurope.fixtures)) }));
 }
 
 function ordinal(n: number) {

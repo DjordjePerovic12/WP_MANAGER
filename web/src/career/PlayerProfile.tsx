@@ -2,6 +2,11 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 import { overall, type Player } from '../../../engine';
 import {
   askingPrice,
+  captainOf,
+  leadersOf,
+  promisesFor,
+  setCaptain,
+  trustOf,
   rejectTransferRequest,
   allClubs,
   clubById,
@@ -275,7 +280,25 @@ export function PlayerProfile({ career, playerId, onChange, onClose }: { career:
                 <MoodDetails career={career} player={player} />
                 <label className="small">
                   Role <StatusSelect career={career} player={player} onChange={onChange} onMessage={setMessage} />
-                </label>
+                </label>{' '}
+                {captainOf(career) === player.id ? (
+                  <span className="captain-tag">Captain</span>
+                ) : (
+                  <button onClick={() => act(setCaptain(career, player.id))}>Make captain</button>
+                )}
+                {leadersOf(career).includes(player.id) && captainOf(career) !== player.id && <span className="muted small"> · a dressing-room leader</span>}
+                <p className="muted small">
+                  Trust in you: <b>{trustOf(career, player.id)}</b>/100
+                </p>
+                {promisesFor(career, player.id).length > 0 && (
+                  <ul className="promise-list">
+                    {promisesFor(career, player.id).map((pr) => (
+                      <li key={pr.id} className={`promise-${pr.status}`}>
+                        🤝 {pr.text} <span className="muted small">({pr.status === 'open' ? `by ${pr.deadline}` : pr.status})</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {career.transferRequests?.includes(player.id) && (
                   <p className="warn-text small">
                     He has asked to leave and is on the transfer list.{' '}

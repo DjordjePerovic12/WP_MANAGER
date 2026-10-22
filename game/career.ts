@@ -16,6 +16,7 @@ import { advanceCompetitions, knockoutCompetitions, resolveClashes, type Knockou
 import { academyWeek, freeCap, initialAcademy, youthContract } from './academy';
 import { buildEurope, realEntries2026, type EuropeSeason } from './europe';
 import { atmosphere, happinessOf, moodShift, updateHappiness, type SquadStatus } from './happiness';
+import { boardWelcome, inboxWeek, leadersOf, type InboxItem, type PlayerPromise } from './inbox';
 import { boardExpectation, initialPotential, MIN_SQUAD, START_SQUAD, youthIntake } from './development';
 import type { SeasonRecord, PlayerSeasonEntry, SummerReport } from './seasons';
 import type { Bid, IncomingOffer, TransferRecord } from './transfers';
@@ -173,6 +174,13 @@ export interface CareerState {
   squadStatus?: Record<string, SquadStatus>;
   unhappyWeeks?: Record<string, number>;
   transferRequests?: string[];
+  /** the inbox, promises made to players, each player's trust in the manager, the captain and leaders, recent talks */
+  inbox?: InboxItem[];
+  promises?: PlayerPromise[];
+  trust?: Record<string, number>;
+  captainId?: string;
+  leaderIds?: string[];
+  lastTalk?: Record<string, string>;
   /** clubs outside the manager's league (for European competitions), with full squads */
   foreign?: Team[];
   /** this season's European competitions */
@@ -392,13 +400,13 @@ export function createCareer(options: {
       return { ...money, ...withStaff(seed, teams, managedClubId, money.finances, SEASON) };
     })(),
   };
-  const withWorld = attachWorld(withAcademy(career), options.world ?? [], options.countries ?? {});
+  const withWorld = boardWelcome(attachWorld(withAcademy(career), options.world ?? [], options.countries ?? {}));
   // The first season: the real 2026-27 European entries (Champions League groups already drawn).
   if (!withWorld.foreign?.length) return withWorld;
   const exists = (id: string) => !!clubById(withWorld, id);
   const malta = allClubs(withWorld).filter((t) => withWorld.clubCountries?.[t.id] === 'MLT').sort((a, b) => teamRating(b.players) - teamRating(a.players)).map((t) => t.id);
   const europe = buildEurope(withWorld, seasonYear(SEASON), realEntries2026(exists, malta), (id) => clubById(withWorld, id), true);
-  return { ...europe, fixtures: numberMatchdays(resolveClashes(europe.fixtures)) };
+  return boardWelcome({ ...europe, inbox: [], fixtures: numberMatchdays(resolveClashes(europe.fixtures)) });
 }
 
 /**
@@ -978,6 +986,8 @@ export function simulateMatchday(input: CareerState, matchday: number, now?: str
   if (next.fixtures.some((f) => f.matchday === matchday && f.result && (f.homeId === next.managedClubId || f.awayId === next.managedClubId))) {
     const moods = updateHappiness({ ...next, teams: week.teams, squad: week.squad });
     next = { ...next, happiness: moods.happiness, unhappyWeeks: moods.unhappyWeeks, transferRequests: moods.transferRequests, transferList: moods.transferList, news: moods.news };
+    // Players come to talk, promises are checked, the leaders are who they are this week.
+    next = inboxWeek({ ...next, leaderIds: leadersOf(next) });
   }
   // The academy trains too.
   const youth = academyWeek({ ...next, teams: week.teams }, days, createRng((state.seed ^ Math.imul(matchday + 7, 0x2f6b)) >>> 0));

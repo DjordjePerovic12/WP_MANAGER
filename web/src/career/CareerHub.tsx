@@ -15,6 +15,7 @@ import {
   totalMatchdays,
   competitionName,
   knockoutResult,
+  unreadCount,
   recentForm,
   atmosphere,
   europeanZones,
@@ -39,13 +40,14 @@ import { HistoryTab } from './HistoryTab';
 import { ClubTab } from './ClubTab';
 import { TransfersTab } from './TransfersTab';
 import { StaffPanel } from './StaffPanel';
+import { InboxTab, waiting } from './InboxTab';
 import { AcademyTab } from './AcademyTab';
 import { PlayerLink, ProfileProvider, RatingBadge } from './PlayerProfile';
 import { Bracket, CompTag, competitionKind, playoffCutoff } from './CompetitionsTab';
 import { EuropeFocus, EuropePanel } from './EuropePanel';
 import { SeasonReview, SummerReport } from './SeasonReview';
 
-type Tab = 'overview' | 'squad' | 'academy' | 'training' | 'staff' | 'club' | 'transfers' | 'competitions' | 'fixtures' | 'stats' | 'history';
+type Tab = 'overview' | 'inbox' | 'squad' | 'academy' | 'training' | 'staff' | 'club' | 'transfers' | 'competitions' | 'fixtures' | 'stats' | 'history';
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 const formatDate = (iso: string) =>
@@ -156,9 +158,10 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
         </div>
 
         <nav className="tabs sub-tabs">
-          {(['overview', 'squad', 'academy', 'training', 'staff', 'club', 'transfers', 'competitions', 'fixtures', 'stats', 'history'] as Tab[]).map((t) => (
+          {(['overview', 'inbox', 'squad', 'academy', 'training', 'staff', 'club', 'transfers', 'competitions', 'fixtures', 'stats', 'history'] as Tab[]).map((t) => (
             <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
               {t[0].toUpperCase() + t.slice(1)}
+            {t === 'inbox' && unreadCount(career) > 0 && <span className="tab-count">{unreadCount(career)}</span>}
             </button>
           ))}
         </nav>
@@ -192,6 +195,14 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
                 />
               ) : fixture ? (
                 <>
+                  {waiting(career).length > 0 && (
+                    <button className="inbox-reminder" onClick={() => setTab('inbox')}>
+                      📬 {waiting(career).length} message{waiting(career).length > 1 ? 's' : ''} waiting for your reply: {waiting(career)
+                        .slice(-2)
+                        .map((m) => `${m.from}, ${m.subject.toLowerCase()}`)
+                        .join('; ')}
+                    </button>
+                  )}
                   <h3>
                     Next match <CompTag career={career} id={fixture.competition} /> <span className="muted small">{fixture.stage}</span>
                   </h3>
@@ -282,6 +293,7 @@ export function CareerHub({ career, onChange, onExit }: { career: CareerState; o
         {tab === 'club' && <ClubTab career={career} onChange={onChange} />}
         {tab === 'transfers' && <TransfersTab career={career} onChange={onChange} />}
         {tab === 'staff' && <StaffPanel career={career} onChange={onChange} />}
+        {tab === 'inbox' && <InboxTab career={career} onChange={onChange} />}
         {tab === 'academy' && <AcademyTab career={career} onChange={onChange} />}
         <p className="muted small">
           {career.generated.length > 0 && `Clubs marked * have generated players (we have no roster for them yet). `}

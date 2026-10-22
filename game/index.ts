@@ -13,3 +13,4 @@ export * from './competitions';
 export * from './academy';
 export * from './europe';
 export * from './happiness';
+export * from './inbox';

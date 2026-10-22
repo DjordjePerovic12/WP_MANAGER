@@ -17,6 +17,11 @@ export const STATUS_LABELS: Record<SquadStatus, string> = { key: 'Key player', r
 /** Share of a match's 32 minutes each status expects over recent games. */
 export const EXPECTED_SHARE: Record<SquadStatus, number> = { key: 0.68, regular: 0.5, rotation: 0.32, backup: 0.14, youth: 0.08 };
 
+/** Positions that rotate more: centers and center-defenders share the 2-metre minutes. */
+const POSITION_SHARE: Record<Player['position'], number> = { GK: 1, CENTER: 0.78, CDEF: 0.78, DRIVER: 1, WING: 0.95, POINT: 0.95 };
+/** The minutes a player expects: his role's share, adjusted for his position. */
+export const expectedShare = (status: SquadStatus, position: Player['position']) => EXPECTED_SHARE[status] * POSITION_SHARE[position];
+
 const DEFAULT_HAPPINESS = 65;
 const RECENT_MATCHES = 6;
 /** Below this for a few matches in a row, a player asks to leave. */
@@ -64,14 +69,15 @@ export function moodFactors(state: CareerState, p: Player): MoodFactor[] {
   // Playing time over the club's recent matches (once a few have been played).
   const clubMatches = state.fixtures.filter((f) => f.result && (f.homeId === state.managedClubId || f.awayId === state.managedClubId)).sort((a, b) => a.date.localeCompare(b.date));
   const recent = clubMatches.slice(-RECENT_MATCHES);
-  let share = EXPECTED_SHARE[status];
+  const expected = expectedShare(status, p.position);
+  let share = expected;
   if (recent.length >= 3) {
     const log = state.matchLog?.[p.id] ?? [];
     const minutes = recent.reduce((s, f) => s + (log.find((m) => m.date === f.date)?.minutes ?? 0), 0);
     share = minutes / (recent.length * 32);
     const injured = !!state.squad[p.id]?.injury;
-    const diff = share - EXPECTED_SHARE[status];
-    if (!injured && Math.abs(diff) > 0.06) {
+    const diff = share - expected;
+    if (!injured && Math.abs(diff) > 0.1) {
       const points = Math.round(clamp(diff * 80, -45, 8) * SENSITIVITY[personality]);
       factors.push({ text: diff < 0 ? `Wants more playing time (${Math.round(share * 32)} minutes a game as ${STATUS_LABELS[status].toLowerCase()})` : `Enjoying his playing time (${Math.round(share * 32)} minutes a game)`, points });
     }
@@ -88,11 +94,17 @@ export function moodFactors(state: CareerState, p: Player): MoodFactor[] {
   // Results.
   const morale = state.morale[state.managedClubId] ?? 60;
   // Results count for those who take part in them: a player who never plays shares little of the joy.
-  const involvement = clamp(share / Math.max(0.1, EXPECTED_SHARE[status]), 0.2, 1);
+  const involvement = clamp(share / Math.max(0.1, expected), 0.2, 1);
   const results = Math.round(clamp((morale - 60) / 3, -10, 10) * (morale > 60 ? involvement : 1));
   if (Math.abs(results) >= 2) factors.push({ text: morale > 60 ? 'Enjoying the team’s results' : 'Frustrated by the team’s results', points: results });
   if (state.transferList.includes(p.id) && !state.transferRequests?.includes(p.id)) factors.push({ text: 'Upset at being put on the transfer list', points: -12 });
   if (state.transferRequests?.includes(p.id)) factors.push({ text: 'Has asked to leave', points: -5 });
+  // The dressing room: a miserable leader drags others down; a delighted captain lifts them.
+  const leaders = state.teams.find((t) => t.id === state.managedClubId)!.players.filter((x) => x.id !== p.id && (state.leaderIds ?? []).includes(x.id));
+  const unhappyLeader = leaders.find((x) => happinessOf(state, x.id) < 35);
+  if (unhappyLeader) factors.push({ text: `Unsettled by ${unhappyLeader.name}'s mood`, points: -4 });
+  if (state.captainId && state.captainId !== p.id && happinessOf(state, state.captainId) >= 80) factors.push({ text: 'Lifted by the captain', points: 3 });
+  if (state.captainId === p.id) factors.push({ text: 'Proud to be captain', points: 4 });
   const base = BASE[personality];
   if (base) factors.push({ text: base > 0 ? 'Easy-going by nature' : 'Hard to please', points: base });
   return factors;
@@ -134,8 +146,8 @@ export function updateHappiness(state: CareerState): CareerState {
     happiness,
     unhappyWeeks,
     transferRequests: requests,
-    // A transfer request puts him on the list (other clubs hear about it).
-    transferList: [...new Set([...state.transferList, ...requests])],
+    // A transfer request goes to the manager's inbox (he lists the player, refuses or promises a move).
+    transferList: state.transferList,
     news: [...state.news, ...news.map((text) => ({ round: md, kind: 'injury' as const, text }))].slice(-60),
   };
 }
@@ -143,7 +155,10 @@ export function updateHappiness(state: CareerState): CareerState {
 /** The dressing room: the average happiness of the squad. */
 export function atmosphere(state: CareerState) {
   const club = state.teams.find((t) => t.id === state.managedClubId)!;
-  return Math.round(club.players.reduce((s, p) => s + happinessOf(state, p.id), 0) / Math.max(1, club.players.length));
+  // Leaders count three times.
+  const weight = (id: string) => ((state.leaderIds ?? []).includes(id) ? 3 : 1);
+  const total = club.players.reduce((s, p) => s + weight(p.id), 0);
+  return Math.round(club.players.reduce((s, p) => s + happinessOf(state, p.id) * weight(p.id), 0) / Math.max(1, total));
 }
 
 /**

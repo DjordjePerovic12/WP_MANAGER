@@ -597,3 +597,24 @@ button.active-sort { border-color: var(--accent); color: var(--accent); }
 .mood-bar span.mood-delighted { background: #2a9d5c; } .mood-bar span.mood-content { background: var(--accent); } .mood-bar span.mood-unsettled { background: #ffb703; } .mood-bar span.mood-unhappy { background: #d4671c; } .mood-bar span.mood-wants-out { background: #c0392b; }
 .mood-details ul { list-style: none; padding: 0; margin: 4px 0 8px; font-size: 13px; display: grid; gap: 2px; }
 .status-select { font-size: 12px; padding: 2px 4px; }
+
+/* Inbox */
+.inbox { display: grid; grid-template-columns: minmax(240px, 340px) 1fr; gap: 16px; min-height: 420px; }
+@media (max-width: 760px) { .inbox { grid-template-columns: 1fr; } }
+.inbox-list { display: flex; flex-direction: column; gap: 4px; max-height: 70vh; overflow-y: auto; }
+.inbox-row { display: flex; gap: 8px; align-items: center; text-align: left; padding: 8px; border-radius: 8px; border: 1px solid transparent; }
+.inbox-row.active { border-color: var(--accent); }
+.inbox-row.unread b { color: var(--accent); }
+.inbox-row-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.inbox-row-main b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inbox-icon { font-size: 18px; }
+.inbox-badge { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: #c98a00; color: #fff; }
+.inbox-body { font-size: 15px; line-height: 1.5; }
+.inbox-options { display: grid; gap: 8px; max-width: 520px; }
+.inbox-option { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 8px; }
+.inbox-reply { font-style: italic; }
+.inbox-reminder { display: block; width: 100%; text-align: left; margin-bottom: 10px; padding: 8px 12px; border-radius: 8px; border: 1px solid #c98a00; background: rgba(201,138,0,0.1); }
+.tab-count { margin-left: 6px; font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 999px; background: #c0392b; color: #fff; }
+.captain-tag { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 800; padding: 0 6px; border-radius: 4px; background: #c98a00; color: #fff; }
+.promise-list { list-style: none; padding: 0; margin: 4px 0; font-size: 13px; }
+.promise-list .promise-kept { color: #2a9d5c; } .promise-list .promise-broken { color: #c0392b; }

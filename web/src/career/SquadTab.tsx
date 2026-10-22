@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { overall, type Player } from '../../../engine';
-import { matchdaySquad, MATCHDAY_MINIMUM, MATCHDAY_SIZE, potentialStars, setSelection, validStarters, type CareerState } from '../../../game';
+import { captainOf, matchdaySquad, MATCHDAY_MINIMUM, MATCHDAY_SIZE, potentialStars, setSelection, validStarters, type CareerState } from '../../../game';
 import { PlayerLink } from './PlayerProfile';
 import { MoodBadge, StatusSelect } from './Mood';
 import { Stars } from './SeasonReview';
@@ -138,6 +138,11 @@ export function SquadTab({ career, onChange }: { career: CareerState; onChange: 
                   <td>{p.cap}</td>
                   <td>
                     <PlayerLink id={p.id}>{p.name}</PlayerLink>
+                    {captainOf(career) === p.id && (
+                      <span className="captain-tag" title="Captain">
+                        C
+                      </span>
+                    )}
                   </td>
                   <td>{p.position}</td>
                   <td>{p.age}</td>
