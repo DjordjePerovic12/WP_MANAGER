@@ -35,7 +35,7 @@ Size: L.
 
 ## Block B: players as people
 
-### B1. Individual happiness
+### B1. Individual happiness: ✅ in main 2026-10-22
 Size: M.
 - **Squad status** for each player, agreed in his contract: key player, regular, rotation, backup or youth.
 - **Happiness** depends on minutes compared with his status, his contract, results and his personality.
@@ -46,7 +46,7 @@ Size: M.
   - how the reports judge him
 - **Dressing room atmosphere:** the team's mood is built from individual players' moods.
 
-### B2. Inbox and conversations
+### B2. Inbox and conversations: ✅ built 2026-10-22 on feature/b2-inbox
 Size: L.
 - **Inbox** replaces the news feed. Items that need a decision wait there: player chats, board requests, offers.
 - **Player conversations** with choices, for example:
